@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "DentalCloud",
-  description: "Sistema de Gestión Odontológica",
+  title: "Atria Fitness",
+  description: "Sistema de Gestión para Centro Fitness",
 };
 
 export default function RootLayout({

@@ -6,33 +6,34 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Stethoscope } from "lucide-react"
+import { Dumbbell } from "lucide-react"
 import { toast } from "sonner"
+import { useAuth } from "@/hooks/useAuth"
 
 export default function LoginPage() {
     const router = useRouter()
+    const { login } = useAuth(false)
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
 
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault()
-        if (email === "admin@admin.com" && password === "123") {
-            localStorage.setItem('dental_auth', 'true')
+        if (email === "admin@admin.com" && password === "12345678") {
+            login()
             toast.success("Inicio de sesión exitoso")
-            router.push("/dashboard")
         } else {
-            toast.error("Credenciales inválidas. Intenta con admin@admin.com / 123")
+            toast.error("Credenciales inválidas. Intenta con admin@admin.com / 12345678")
         }
     }
 
     return (
-        <div className="flex h-screen w-full items-center justify-center bg-slate-50">
+        <div className="flex h-screen w-full items-center justify-center bg-slate-50 dark:bg-slate-900">
             <Card className="w-full max-w-md">
                 <CardHeader className="space-y-1 text-center">
                     <div className="flex justify-center mb-2">
-                        <Stethoscope className="h-10 w-10 text-blue-600" />
+                        <Dumbbell className="h-10 w-10 text-primary" />
                     </div>
-                    <CardTitle className="text-2xl">DentalCloud</CardTitle>
+                    <CardTitle className="text-2xl">Atria Fitness</CardTitle>
                     <CardDescription>
                         Ingresa tus credenciales para acceder al sistema
                     </CardDescription>
@@ -44,7 +45,7 @@ export default function LoginPage() {
                             <Input
                                 id="email"
                                 type="email"
-                                placeholder="doctor@clinica.com"
+                                placeholder="admin@atriafitness.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
@@ -62,7 +63,7 @@ export default function LoginPage() {
                         </div>
                     </CardContent>
                     <CardFooter>
-                        <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700">
+                        <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
                             Iniciar Sesión
                         </Button>
                     </CardFooter>

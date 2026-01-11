@@ -8,7 +8,7 @@ export function useAuth(requireAuth = true) {
 
     useEffect(() => {
         // Check for auth flag in localStorage
-        const authStatus = localStorage.getItem('dental_auth');
+        const authStatus = localStorage.getItem('atria_auth');
 
         if (authStatus === 'true') {
             setIsAuthenticated(true);
@@ -22,13 +22,13 @@ export function useAuth(requireAuth = true) {
     }, [router, requireAuth]);
 
     const login = () => {
-        localStorage.setItem('dental_auth', 'true');
+        localStorage.setItem('atria_auth', 'true');
         setIsAuthenticated(true);
         router.push('/dashboard');
     };
 
     const logout = () => {
-        localStorage.removeItem('dental_auth');
+        localStorage.removeItem('atria_auth');
         setIsAuthenticated(false);
         router.push('/login');
     };

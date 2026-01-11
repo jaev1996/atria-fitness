@@ -48,78 +48,161 @@
 
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  /* Light Theme */
+  --background: oklch(0.99 0 0);
+  --foreground: oklch(0.15 0.02 260);
+  /* Deep cool black */
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
+  --card-foreground: oklch(0.15 0.02 260);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.646 0.222 41.116);
-  --chart-2: oklch(0.6 0.118 184.704);
-  --chart-3: oklch(0.398 0.07 227.392);
-  --chart-4: oklch(0.828 0.189 84.429);
-  --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --popover-foreground: oklch(0.15 0.02 260);
+
+  /* Primary: Vibrant Violet */
+  --primary: oklch(0.60 0.22 290);
+  --primary-foreground: oklch(0.99 0 0);
+
+  /* Secondary: Soft Lavender */
+  --secondary: oklch(0.95 0.05 290);
+  --secondary-foreground: oklch(0.35 0.12 290);
+
+  --muted: oklch(0.96 0.01 260);
+  --muted-foreground: oklch(0.55 0.02 260);
+
+  --accent: oklch(0.96 0.01 260);
+  --accent-foreground: oklch(0.15 0.02 260);
+
+  --destructive: oklch(0.65 0.22 25);
+  /* Vibrant Red */
+  --destructive-foreground: oklch(0.99 0 0);
+
+  --border: oklch(0.92 0.01 260);
+  --input: oklch(0.92 0.01 260);
+  --ring: oklch(0.60 0.22 290);
+  /* Matches Primary */
+
+  --chart-1: oklch(0.60 0.22 290);
+  --chart-2: oklch(0.70 0.18 310);
+  --chart-3: oklch(0.60 0.15 260);
+  --chart-4: oklch(0.85 0.10 85);
+  --chart-5: oklch(0.75 0.15 60);
+
+  --sidebar: oklch(0.99 0 0);
+  --sidebar-foreground: oklch(0.15 0.02 260);
+  --sidebar-primary: oklch(0.60 0.22 290);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.96 0.01 260);
+  --sidebar-accent-foreground: oklch(0.15 0.02 260);
+  --sidebar-border: oklch(0.92 0.01 260);
+  --sidebar-ring: oklch(0.60 0.22 290);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.488 0.243 264.376);
-  --chart-2: oklch(0.696 0.17 162.48);
-  --chart-3: oklch(0.769 0.188 70.08);
-  --chart-4: oklch(0.627 0.265 303.9);
-  --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  /* Dark Theme - Sleek fitness */
+  --background: oklch(0.12 0.02 260);
+  --foreground: oklch(0.98 0 0);
+
+  --card: oklch(0.16 0.02 260);
+  --card-foreground: oklch(0.98 0 0);
+
+  --popover: oklch(0.16 0.02 260);
+  --popover-foreground: oklch(0.98 0 0);
+
+  /* Primary: Vibrant Violet (Brighter for dark mode) */
+  --primary: oklch(0.70 0.18 290);
+  --primary-foreground: oklch(0.12 0.02 260);
+
+  /* Secondary: Deep Violet */
+  --secondary: oklch(0.30 0.10 290);
+  --secondary-foreground: oklch(0.95 0.05 290);
+
+  --muted: oklch(0.22 0.02 260);
+  --muted-foreground: oklch(0.70 0.02 260);
+
+  --accent: oklch(0.22 0.02 260);
+  --accent-foreground: oklch(0.98 0 0);
+
+  --destructive: oklch(0.60 0.20 25);
+  --destructive-foreground: oklch(0.98 0 0);
+
+  --border: oklch(0.25 0.02 260);
+  --input: oklch(0.25 0.02 260);
+  --ring: oklch(0.60 0.22 290);
+
+  --chart-1: oklch(0.70 0.18 290);
+  --chart-2: oklch(0.75 0.18 310);
+  --chart-3: oklch(0.65 0.15 260);
+  --chart-4: oklch(0.90 0.10 85);
+  --chart-5: oklch(0.80 0.15 60);
+
+  --sidebar: oklch(0.14 0.02 260);
+  --sidebar-foreground: oklch(0.98 0 0);
+  --sidebar-primary: oklch(0.70 0.18 290);
+  --sidebar-primary-foreground: oklch(0.12 0.02 260);
+  --sidebar-accent: oklch(0.22 0.02 260);
+  --sidebar-accent-foreground: oklch(0.98 0 0);
+  --sidebar-border: oklch(0.25 0.02 260);
+  --sidebar-ring: oklch(0.60 0.22 290);
 }
 
 @layer base {
   * {
     @apply border-border outline-ring/50;
   }
+
   body {
     @apply bg-background text-foreground;
+  }
+
+  /* Custom Scrollbar */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--muted-foreground);
+    opacity: 0.5;
+    border-radius: 5px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--primary);
+  }
+}
+
+/* Print Styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+
+  #printable-report,
+  #printable-report * {
+    visibility: visible;
+  }
+
+  #printable-report {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    margin: 0;
+    padding: 20px;
+    background: white;
+    z-index: 9999;
+  }
+
+  aside,
+  header,
+  nav,
+  button,
+  .no-print {
+    display: none !important;
   }
 }
