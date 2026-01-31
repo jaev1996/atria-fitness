@@ -15,7 +15,10 @@ export function useAuth(requireAuth = true) {
         } else {
             setIsAuthenticated(false);
             if (requireAuth) {
-                router.push('/login');
+                // Use a macrotask to avoid blocking the render cycle
+                setTimeout(() => {
+                    router.push('/login');
+                }, 0);
             }
         }
         setLoading(false);
@@ -30,7 +33,10 @@ export function useAuth(requireAuth = true) {
     const logout = () => {
         localStorage.removeItem('atria_auth');
         setIsAuthenticated(false);
-        router.push('/login');
+        // Add a small delay for a smoother transition
+        setTimeout(() => {
+            router.push('/login');
+        }, 500);
     };
 
     return { isAuthenticated, loading, login, logout };

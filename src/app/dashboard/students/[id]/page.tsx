@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { db, Student, HistoryEntry, PaymentMethod, StudentPlan } from "@/lib/storage"
+import { db, Student, PaymentMethod, StudentStatus } from "@/lib/storage"
 import { Sidebar } from "@/components/shared/sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { ArrowLeft, Plus, Trash2, FileText, Activity, AlertCircle, HeartPulse, ShieldAlert, Phone, CreditCard, ShoppingBag, Edit, User, UserCheck } from "lucide-react"
+import { ArrowLeft, Trash2, Activity, AlertCircle, HeartPulse, ShieldAlert, Phone, CreditCard, ShoppingBag, Edit } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
@@ -48,7 +48,7 @@ export default function StudentDetailsPage() {
         credits: 8,
         amount: "",
         method: "Transferencia",
-        discipline: "Pole Sport" // Default
+        discipline: "Pole Dance" // Standardized
     })
 
     // Edit Forms
@@ -56,7 +56,7 @@ export default function StudentDetailsPage() {
     const [editMedicalForm, setEditMedicalForm] = useState<Partial<Student>>({})
 
     // Load student
-    const loadStudent = () => {
+    const loadStudent = useCallback(async () => {
         if (params.id) {
             const s = db.getStudent(params.id as string)
             if (s) {
@@ -72,11 +72,14 @@ export default function StudentDetailsPage() {
                 router.push("/dashboard/students")
             }
         }
-    }
+    }, [params.id, router])
 
     useEffect(() => {
-        loadStudent()
-    }, [params.id])
+        const timer = setTimeout(() => {
+            loadStudent()
+        }, 0)
+        return () => clearTimeout(timer)
+    }, [loadStudent])
 
     const handleUpdateProfile = () => {
         if (student) {
@@ -152,7 +155,7 @@ export default function StudentDetailsPage() {
                 credits: 8,
                 amount: "",
                 method: "Transferencia",
-                discipline: "Pole Sport"
+                discipline: "Pole Dance"
             })
             loadStudent()
         }
@@ -219,7 +222,7 @@ export default function StudentDetailsPage() {
                                             </div>
                                             <div className="grid gap-2">
                                                 <Label>Estatus</Label>
-                                                <Select value={editProfileForm.status} onValueChange={(v: any) => setEditProfileForm({ ...editProfileForm, status: v })}>
+                                                <Select value={editProfileForm.status} onValueChange={(v: StudentStatus) => setEditProfileForm({ ...editProfileForm, status: v })}>
                                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="active">Activa</SelectItem>
@@ -285,7 +288,7 @@ export default function StudentDetailsPage() {
                                                 <Select value={newPayment.discipline} onValueChange={(v) => setNewPayment({ ...newPayment, discipline: v })}>
                                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="Pole Sport">Pole Sport</SelectItem>
+                                                        <SelectItem value="Pole Dance">Pole Dance</SelectItem>
                                                         <SelectItem value="Yoga">Yoga</SelectItem>
                                                         <SelectItem value="Telas">Telas</SelectItem>
                                                         <SelectItem value="General">General (Todas)</SelectItem>
@@ -328,7 +331,7 @@ export default function StudentDetailsPage() {
                                             </div>
                                             <div className="grid gap-2">
                                                 <Label>Método de Pago</Label>
-                                                <Select value={newPayment.method} onValueChange={(v: any) => setNewPayment({ ...newPayment, method: v })}>
+                                                <Select value={newPayment.method} onValueChange={(v: PaymentMethod) => setNewPayment({ ...newPayment, method: v })}>
                                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                                     <SelectContent>
                                                         <SelectItem value="Efectivo">Efectivo</SelectItem>
@@ -482,7 +485,7 @@ export default function StudentDetailsPage() {
                                 </div>
                                 <div className="space-y-1 md:col-span-2 border-t pt-4 mt-2">
                                     <Label className="text-slate-500">Nota Deportiva</Label>
-                                    <p className="text-sm text-slate-700 dark:text-slate-300 italic">"{student.sportsInfo || "Sin antecedentes"}"</p>
+                                    <p className="text-sm text-slate-700 dark:text-slate-300 italic">&ldquo;{student.sportsInfo || "Sin antecedentes"}&rdquo;</p>
                                 </div>
                             </CardContent>
                         </Card>

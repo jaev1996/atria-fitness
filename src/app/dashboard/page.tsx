@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useSyncExternalStore } from "react"
 import { db, ClassSession } from "@/lib/storage"
 import { isToday, parseISO } from "date-fns"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -9,17 +9,37 @@ import { useAuth } from "@/hooks/useAuth"
 
 export default function DashboardPage() {
     const { isAuthenticated, loading } = useAuth(true)
-    const [metrics, setMetrics] = useState({
-        todayCount: 0,
-        pendingCount: 0,
-        completedCount: 0,
-        todayStudentsFactor: 0
-    })
-    const [upcomingClasses, setUpcomingClasses] = useState<ClassSession[]>([])
 
-    const loadData = () => {
-        const rawClasses = db.getClasses()
-        const classes = rawClasses || []
+    // Use useSyncExternalStore with a stable string snapshot to avoid infinite loops
+    // We subscribe to 'storage-update' and return the raw string from localStorage
+    const storageString = useSyncExternalStore(
+        (callback) => {
+            window.addEventListener("storage-update", callback)
+            return () => window.removeEventListener("storage-update", callback)
+        },
+        () => typeof window !== 'undefined' ? localStorage.getItem('atria_fitness_data') : null,
+        () => null
+    )
+
+    // Trigger seeding and initial load logic once
+    useEffect(() => {
+        if (isAuthenticated && typeof window !== 'undefined') {
+            db.getAll() // This triggers seed if data doesn't exist
+        }
+    }, [isAuthenticated])
+
+    // Parse the classes from the storage string and derive other data
+    // This is safe and only re-calculates when the localStorage string actually changes
+    const { metrics, upcomingClasses } = useMemo(() => {
+        let classes: ClassSession[] = []
+        if (storageString) {
+            try {
+                const parsed = JSON.parse(storageString)
+                classes = parsed.classes || []
+            } catch (e) {
+                console.error("Error parsing storage data in dashboard", e)
+            }
+        }
 
         // Filter today
         const classesToday = classes.filter(c => {
@@ -38,12 +58,12 @@ export default function DashboardPage() {
         // Completed
         const countCompleted = classes.filter(c => c.status === 'completed').length
 
-        setMetrics({
+        const metricsData = {
             todayCount: countToday,
             pendingCount: countPending,
             completedCount: countCompleted,
             todayStudentsFactor
-        })
+        }
 
         // Upcoming: scheduled and today onwards, sort by date/time
         const now = new Date()
@@ -62,19 +82,8 @@ export default function DashboardPage() {
             })
             .slice(0, 5)
 
-        setUpcomingClasses(upcoming)
-    }
-
-    useEffect(() => {
-        if (isAuthenticated) {
-            db.getAll(); // Trigger seed if needed
-            loadData()
-
-            const handleStorageUpdate = () => loadData()
-            window.addEventListener("storage-update", handleStorageUpdate)
-            return () => window.removeEventListener("storage-update", handleStorageUpdate)
-        }
-    }, [isAuthenticated])
+        return { metrics: metricsData, upcomingClasses: upcoming }
+    }, [storageString])
 
     if (loading || !isAuthenticated) return null
 

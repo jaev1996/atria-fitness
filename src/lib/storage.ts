@@ -1,4 +1,4 @@
-import { RoomId, ROOMS, DISCIPLINES } from "@/constants/config";
+import { RoomId } from "@/constants/config";
 
 // Tipos básicos
 export type HistoryEntry = {
@@ -92,31 +92,63 @@ export type ClassSession = {
     notes?: string;
 };
 
-const STORAGE_KEY = 'atria_fitness_data';
+export type StorageData = {
+    students: Student[];
+    instructors: Instructor[];
+    classes: ClassSession[];
+};
+
+const STORAGE_KEY = 'atria_fitness_data_v2';
+
+const DEFAULT_DATA: StorageData = {
+    students: [],
+    instructors: [],
+    classes: []
+};
 
 export const db = {
     // Obtener todo el estado
-    getAll: () => {
-        if (typeof window === 'undefined') return { students: [], classes: [], instructors: [] };
+    getAll: (): StorageData => {
+        if (typeof window === 'undefined') return DEFAULT_DATA;
         const data = localStorage.getItem(STORAGE_KEY);
         if (!data) {
             return db.seed();
         }
-        return JSON.parse(data);
+        try {
+            const parsed = JSON.parse(data);
+            return {
+                students: parsed.students || [],
+                instructors: parsed.instructors || [],
+                classes: parsed.classes || []
+            };
+        } catch (e) {
+            console.error("Error parsing storage data", e);
+            return DEFAULT_DATA;
+        }
     },
 
     // Guardar estado
-    save: (data: any) => {
+    save: (data: StorageData) => {
+        if (typeof window === 'undefined') return;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         window.dispatchEvent(new Event("storage-update"));
     },
 
-    seed: () => {
-        const initialData = {
-            students: [],
+    seed: (): StorageData => {
+        const initialData: StorageData = {
+            students: [
+                { id: "s1", name: "Ana Martínez", email: "ana@example.com", phone: "555-0001", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [], payments: [], history: [] },
+                { id: "s2", name: "Beatriz López", email: "beatriz@example.com", phone: "555-0002", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [], payments: [], history: [] },
+                { id: "s3", name: "Carla García", email: "carla@example.com", phone: "555-0003", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [], payments: [], history: [] },
+                { id: "s4", name: "Daniela Rivas", email: "daniela@example.com", phone: "555-0004", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [], payments: [], history: [] },
+                { id: "s5", name: "Elena Torres", email: "elena@example.com", phone: "555-0005", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "guest", plans: [], payments: [], history: [] },
+            ],
             instructors: [
-                { id: "i1", name: "Valentina", specialties: ["Pole Dance", "Glúteos"], email: "val@example.com", phone: "555-1111" },
-                { id: "i2", name: "Camila", specialties: ["Telas", "Yoga"], email: "cam@example.com", phone: "555-2222" }
+                { id: "i1", name: "Valentina (Pole)", specialties: ["Pole Dance"], email: "valentina@atria.com", phone: "555-1111" },
+                { id: "i2", name: "Camila (Yoga)", specialties: ["Yoga"], email: "camila@atria.com", phone: "555-2222" },
+                { id: "i3", name: "Sofía (Telas)", specialties: ["Telas"], email: "sofia@atria.com", phone: "555-3333" },
+                { id: "i4", name: "Lucía (Glúteos)", specialties: ["Glúteos"], email: "lucia@atria.com", phone: "555-4444" },
+                { id: "i5", name: "Andrea (Master)", specialties: ["Pole Dance", "Yoga", "Telas", "Glúteos"], email: "andrea@atria.com", phone: "555-5555" }
             ],
             classes: []
         };
@@ -125,45 +157,43 @@ export const db = {
     },
 
     // CRUD Alumnas
-    getStudents: () => db.getAll().students as Student[],
+    getStudents: () => db.getAll().students,
 
     getStudent: (id: string) => {
         const students = db.getStudents();
         return students.find(s => s.id === id);
     },
 
-    addStudent: (student: Omit<Student, 'id' | 'history' | 'payments' | 'plans' | 'status'> & { planType: string, status?: StudentStatus }) => {
+    addStudent: (data: Omit<Student, 'id' | 'history' | 'payments' | 'plans' | 'status'> & { planType: string, status?: StudentStatus }) => {
         const state = db.getAll();
-        if (!state.students) state.students = [];
+        const { planType, ...studentInfo } = data;
 
         const initialPlans: StudentPlan[] = [];
-        if (student.planType) {
+        if (planType) {
             let credits = 8;
-            if (student.planType === 'Ilimitado') credits = 999;
-            if (student.planType === 'Clase Suelta') credits = 1;
-            if (student.planType === 'Pack 12 Clases') credits = 12;
-            if (student.planType === 'Pack 4 Clases') credits = 4;
-            if (student.planType === 'Sin Plan') credits = 0;
+            if (planType === 'Ilimitado') credits = 999;
+            if (planType === 'Clase Suelta') credits = 1;
+            if (planType === 'Pack 12 Clases') credits = 12;
+            if (planType === 'Pack 4 Clases') credits = 4;
+            if (planType === 'Sin Plan') credits = 0;
 
             initialPlans.push({
                 id: Date.now().toString(),
                 disciplina: "General",
                 creditos: credits,
                 activo: true,
-                nombreOriginal: student.planType
+                nombreOriginal: planType
             });
         }
 
-        const newStudent = {
-            ...student,
+        const newStudent: Student = {
+            ...studentInfo,
             id: Date.now().toString(),
             history: [],
             payments: [],
             plans: initialPlans,
-            status: student.status || 'active'
+            status: data.status || 'active'
         };
-        // Clean up temp field
-        delete (newStudent as any).planType;
 
         state.students.push(newStudent);
         db.save(state);
@@ -183,7 +213,7 @@ export const db = {
 
     updateStudent: (id: string, updates: Partial<Student>) => {
         const state = db.getAll();
-        const index = state.students.findIndex((s: Student) => s.id === id);
+        const index = state.students.findIndex((s) => s.id === id);
         if (index !== -1) {
             state.students[index] = { ...state.students[index], ...updates };
             db.save(state);
@@ -248,7 +278,7 @@ export const db = {
     },
 
     // CRUD Instructores
-    getInstructors: () => (db.getAll().instructors || []) as Instructor[],
+    getInstructors: () => db.getAll().instructors,
 
     addInstructor: (data: Omit<Instructor, 'id'>) => {
         const state = db.getAll();
@@ -279,17 +309,16 @@ export const db = {
     },
 
     // CRUD Clases
-    getClasses: () => (db.getAll().classes || []) as ClassSession[],
+    getClasses: () => db.getAll().classes,
 
     addClass: (classSession: Omit<ClassSession, 'id' | 'attendees' | 'endTime'>) => {
         const state = db.getAll();
-        if (!state.classes) state.classes = [];
 
         const [h, m] = classSession.startTime.split(':').map(Number);
         const endH = h + 1;
         const endTime = `${endH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
 
-        const newClass = {
+        const newClass: ClassSession = {
             ...classSession,
             id: Date.now().toString(),
             endTime,
@@ -302,42 +331,40 @@ export const db = {
 
     updateClass: (classData: ClassSession) => {
         const state = db.getAll();
-        if (state.classes) {
-            const index = state.classes.findIndex((c: ClassSession) => c.id === classData.id);
-            if (index !== -1) {
-                const oldClass = state.classes[index];
-                state.classes[index] = classData;
+        const index = state.classes.findIndex((c) => c.id === classData.id);
+        if (index !== -1) {
+            const oldClass = state.classes[index];
+            state.classes[index] = classData;
 
-                // CHECK FOR COMPLETION LOGIC
-                if (classData.status === 'completed' && oldClass.status !== 'completed') {
-                    classData.attendees.forEach(attendee => {
-                        if (attendee.status === 'booked' && !attendee.creditDeducted && attendee.attendanceType === 'standard') {
-                            const studentIndex = state.students.findIndex((s: Student) => s.id === attendee.studentId);
-                            if (studentIndex !== -1) {
-                                const student = state.students[studentIndex];
-                                let plan = student.plans?.find((p: StudentPlan) =>
-                                    p.activo && (p.disciplina === classData.type || classData.type.includes(p.disciplina) || p.disciplina === 'General')
-                                );
+            // CHECK FOR COMPLETION LOGIC
+            if (classData.status === 'completed' && oldClass.status !== 'completed') {
+                classData.attendees.forEach(attendee => {
+                    if (attendee.status === 'booked' && !attendee.creditDeducted && attendee.attendanceType === 'standard') {
+                        const studentIndex = state.students.findIndex((s) => s.id === attendee.studentId);
+                        if (studentIndex !== -1) {
+                            const student = state.students[studentIndex];
+                            const plan = student.plans?.find((p) =>
+                                p.activo && (p.disciplina === classData.type || classData.type.includes(p.disciplina) || p.disciplina === 'General')
+                            );
 
-                                if (plan && plan.creditos > 0) {
-                                    plan.creditos -= 1;
-                                    attendee.creditDeducted = true;
+                            if (plan && plan.creditos > 0) {
+                                plan.creditos -= 1;
+                                attendee.creditDeducted = true;
 
-                                    // Add to History automatically
-                                    student.history.push({
-                                        id: Date.now() + Math.random().toString(),
-                                        date: new Date().toISOString().split('T')[0],
-                                        activity: `Clase Completada: ${classData.type}`,
-                                        notes: `Instructor: ${classData.instructorName}`,
-                                        cost: 0
-                                    });
-                                }
+                                // Add to History automatically
+                                student.history.push({
+                                    id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                                    date: new Date().toISOString().split('T')[0],
+                                    activity: `Clase Completada: ${classData.type}`,
+                                    notes: `Instructor: ${classData.instructorName}`,
+                                    cost: 0
+                                });
                             }
                         }
-                    });
-                }
-                db.save(state);
+                    }
+                });
             }
+            db.save(state);
         }
     },
 
@@ -381,7 +408,14 @@ export const db = {
             const hasValidPlan = student.plans?.some((p: StudentPlan) =>
                 p.activo &&
                 p.creditos > 0 &&
-                (p.disciplina === classSession.type || classSession.type.includes(p.disciplina) || p.disciplina === 'General')
+                (
+                    p.disciplina === classSession.type ||
+                    classSession.type.includes(p.disciplina) ||
+                    p.disciplina.includes(classSession.type) ||
+                    (p.disciplina === 'Pole Dance' && classSession.type === 'Pole Sport') || // Compatibility
+                    (p.disciplina === 'Pole Sport' && classSession.type === 'Pole Dance') || // Compatibility
+                    p.disciplina === 'General'
+                )
             );
 
             if (!hasValidPlan) {
@@ -408,7 +442,7 @@ export const db = {
             if (attendee && attendee.creditDeducted) {
                 const student = state.students.find((s: Student) => s.id === studentId);
                 if (student) {
-                    let plan = student.plans?.find((p: StudentPlan) =>
+                    const plan = student.plans?.find((p: StudentPlan) =>
                         p.activo && (p.disciplina === classSession.type || classSession.type.includes(p.disciplina) || p.disciplina === 'General')
                     );
                     if (plan) plan.creditos += 1;

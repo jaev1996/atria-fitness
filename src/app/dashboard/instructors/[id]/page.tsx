@@ -13,11 +13,9 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Calendar as CalendarIcon, DollarSign, Users, Briefcase, Mail, Phone, Clock, Download, Printer } from "lucide-react"
+import { ArrowLeft, Calendar as CalendarIcon, DollarSign, Users, Briefcase, Mail, Phone, Printer } from "lucide-react"
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns"
-import { es } from "date-fns/locale"
 import { toast } from "sonner"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 // Helper to format currency
 const formatCurrency = (amount: number) => {
@@ -29,8 +27,12 @@ export default function InstructorDetailPage() {
     const router = useRouter()
     const instructorId = params.id as string
 
-    const [instructor, setInstructor] = useState<Instructor | null>(null)
-    const [classes, setClasses] = useState<ClassSession[]>([])
+    const instructor = useMemo<Instructor | null>(() => {
+        const allInstructors = db.getInstructors()
+        return allInstructors.find(i => i.id === instructorId) || null
+    }, [instructorId])
+
+    const classes = useMemo<ClassSession[]>(() => db.getClasses(), [])
 
     // Payroll Filter State
     const [dateRange, setDateRange] = useState<{ start: string, end: string }>({
@@ -39,17 +41,11 @@ export default function InstructorDetailPage() {
     })
 
     useEffect(() => {
-        const allInstructors = db.getInstructors()
-        const found = allInstructors.find(i => i.id === instructorId)
-        if (found) {
-            setInstructor(found)
-        } else {
+        if (!instructor && instructorId) {
             toast.error("Instructor no encontrado")
             router.push("/dashboard/instructors")
         }
-
-        setClasses(db.getClasses())
-    }, [instructorId, router])
+    }, [instructor, instructorId, router])
 
     const payrollData = useMemo(() => {
         if (!instructor) return { classes: [], totalClasses: 0, totalHours: 0, totalPay: 0, avgStudents: 0 }

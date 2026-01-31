@@ -1,17 +1,16 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import { db, Student, ClassSession, ClassStatus, Instructor, Attendee } from "@/lib/storage"
 import { Sidebar } from "@/components/shared/sidebar"
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, Plus, Users, School, Trash, Sparkles, AlertTriangle } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus, Users, School, Trash, Sparkles, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { ROOMS, RoomId } from "@/constants/config"
@@ -40,7 +39,14 @@ const STATUS_LABELS: Record<ClassStatus, string> = {
 }
 
 export default function CalendarPage() {
-    const [currentWeekStart, setCurrentWeekStart] = useState(new Date())
+    const [currentWeekStart, setCurrentWeekStart] = useState(() => {
+        const today = new Date()
+        const day = today.getDay()
+        const diff = today.getDate() - day + (day === 0 ? -6 : 1)
+        const date = new Date(today.setDate(diff))
+        date.setHours(0, 0, 0, 0) // Zero out time to avoid UTC day-shifts
+        return date
+    })
     const [activeRoom, setActiveRoom] = useState<RoomId>('sala-pole')
 
     // Data
@@ -50,7 +56,6 @@ export default function CalendarPage() {
 
     // UI State
     const [isDialogOpen, setIsDialogOpen] = useState(false)
-    const [selectedSlot, setSelectedSlot] = useState<{ date: Date, time: string } | null>(null)
     const [studentToAdd, setStudentToAdd] = useState<string>("")
     const [isCourtesy, setIsCourtesy] = useState(false)
 
@@ -79,21 +84,18 @@ export default function CalendarPage() {
     })
 
     // Load Initial Data
-    const loadData = () => {
+    const loadData = useCallback(() => {
         setClasses(db.getClasses())
         setStudents(db.getStudents())
         setInstructors(db.getInstructors())
-    }
+    }, [])
 
     useEffect(() => {
-        loadData()
-
-        const today = new Date()
-        const day = today.getDay()
-        const diff = today.getDate() - day + (day === 0 ? -6 : 1)
-        const monday = new Date(today.setDate(diff))
-        setCurrentWeekStart(monday)
-    }, [])
+        const timer = setTimeout(() => {
+            loadData()
+        }, 0)
+        return () => clearTimeout(timer)
+    }, [loadData])
 
     // Navigation
     const navigateWeek = (direction: 'prev' | 'next') => {
@@ -112,7 +114,8 @@ export default function CalendarPage() {
 
     // Handlers
     const handleSlotClick = (date: Date, time: string) => {
-        const dateStr = date.toISOString().split('T')[0]
+        // Robust way to get YYYY-MM-DD in local time
+        const dateStr = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
         const existingClass = classes.find(c =>
             c.date === dateStr &&
             c.startTime === time &&
@@ -152,7 +155,6 @@ export default function CalendarPage() {
                 attendees: []
             })
         }
-        setSelectedSlot({ date, time })
         setIsDialogOpen(true)
     }
 
@@ -252,8 +254,9 @@ export default function CalendarPage() {
                 setStudentToAdd("")
                 setIsCourtesy(false)
             }
-        } catch (e: any) {
-            toast.error(e.message) // This catches "Colisión: La alumna ya tiene una clase..."
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Ocurrió un error inesperado"
+            toast.error(message) // This catches "Colisión: La alumna ya tiene una clase..."
         }
     }
 

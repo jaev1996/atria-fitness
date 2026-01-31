@@ -5,37 +5,49 @@ import { Sidebar } from "@/components/shared/sidebar"
 import { db, ClassSession } from "@/lib/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts"
-import { Users, CalendarDays, TrendingUp, Percent, Award } from "lucide-react"
+import { Users, CalendarDays, TrendingUp, Percent, Award, ChevronLeft, ChevronRight } from "lucide-react"
+import { Button } from "@/components/ui/button"
 
 const COLORS = ['#e11d48', '#2563eb', '#16a34a', '#d97706', '#9333ea', '#0891b2', '#4f46e5'];
 
 export default function StatsPage() {
     const [classes, setClasses] = useState<ClassSession[]>([])
     const [loading, setLoading] = useState(true)
+    const [selectedDate, setSelectedDate] = useState(new Date()) // Month/Year for filtering
 
     useEffect(() => {
-        // Load data
-        setClasses(db.getClasses())
-        setLoading(false)
+        const loadStatsData = () => {
+            const data = db.getClasses()
+            setClasses([...data]) // New reference to trigger re-memoization
+            setLoading(false)
+        }
+
+        loadStatsData()
+        window.addEventListener('storage-update', loadStatsData)
+        return () => window.removeEventListener('storage-update', loadStatsData)
     }, [])
 
-    // Filter for Current Month
+    // Filter for Selected Month (Immutable to timezone shifts)
     const currentMonthClasses = useMemo(() => {
-        const now = new Date()
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
-        const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+        const yearMonth = `${selectedDate.getFullYear()}-${(selectedDate.getMonth() + 1).toString().padStart(2, '0')}`
 
         return classes.filter(c => {
-            const d = new Date(c.date)
-            return d >= monthStart && d <= monthEnd && c.status !== 'cancelled'
+            return c.date.startsWith(yearMonth) && c.status !== 'cancelled'
         })
-    }, [classes])
+    }, [classes, selectedDate])
+
+    const navigateMonth = (direction: 'prev' | 'next') => {
+        const newDate = new Date(selectedDate)
+        newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1))
+        setSelectedDate(newDate)
+    }
 
     // 1. Instructor Metrics (Clases Impartidas)
     const instructorData = useMemo(() => {
         const counts: Record<string, number> = {}
         currentMonthClasses.forEach(c => {
-            counts[c.instructorName] = (counts[c.instructorName] || 0) + 1
+            const name = c.instructorName || "Sin Instructor"
+            counts[name] = (counts[name] || 0) + 1
         })
         return Object.entries(counts)
             .map(([name, value]) => ({ name, value }))
@@ -50,19 +62,20 @@ export default function StatsPage() {
         let totalAttendees = 0
 
         currentMonthClasses.forEach(c => {
-            totalCapacity += c.maxCapacity
-            totalAttendees += (c.attendees?.length || 0)
+            totalCapacity += (c.maxCapacity || 0)
+            const bookedCount = (c.attendees || []).filter(a => a.status === 'booked').length
+            totalAttendees += bookedCount
         })
 
         return totalCapacity > 0 ? Math.round((totalAttendees / totalCapacity) * 100) : 0
     }, [currentMonthClasses])
 
-    // 3. Popularity (Disciplines by # of Attendees) "Más reservada"
+    // 3. Popularity (Disciplines by # of Attendees)
     const popularityData = useMemo(() => {
         const counts: Record<string, number> = {}
         currentMonthClasses.forEach(c => {
-            // Count total attendees per discipline type
-            counts[c.type] = (counts[c.type] || 0) + (c.attendees?.length || 0)
+            const bookedCount = (c.attendees || []).filter(a => a.status === 'booked').length
+            counts[c.type] = (counts[c.type] || 0) + bookedCount
         })
 
         return Object.entries(counts)
@@ -90,7 +103,7 @@ export default function StatsPage() {
 
     // KPIs
     const totalClasses = currentMonthClasses.length
-    const totalAttendances = currentMonthClasses.reduce((acc, c) => acc + (c.attendees?.length || 0), 0)
+    const totalAttendances = currentMonthClasses.reduce((acc, c) => acc + (c.attendees || []).filter(a => a.status === 'booked').length, 0)
 
     if (loading) {
         return <div className="flex h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">Cargando...</div>
@@ -100,11 +113,33 @@ export default function StatsPage() {
         <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
             <Sidebar />
             <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                <header className="bg-white dark:bg-slate-800 border-b p-6">
+                <header className="bg-white dark:bg-slate-800 border-b p-6 flex items-center justify-between">
                     <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                         <TrendingUp className="h-6 w-6 text-primary" />
-                        Reportes y Métricas (Este Mes)
+                        Reportes y Métricas
                     </h1>
+
+                    <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-900 border rounded-full px-4 py-2 shadow-sm">
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-full"
+                            onClick={() => navigateMonth('prev')}
+                        >
+                            <ChevronLeft className="h-5 w-5" />
+                        </Button>
+                        <span className="text-sm font-semibold capitalize min-w-[140px] text-center">
+                            {selectedDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+                        </span>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-full"
+                            onClick={() => navigateMonth('next')}
+                        >
+                            <ChevronRight className="h-5 w-5" />
+                        </Button>
+                    </div>
                 </header>
 
                 <div className="flex-1 overflow-y-auto p-6 space-y-6">
