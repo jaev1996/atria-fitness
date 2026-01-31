@@ -17,7 +17,7 @@ export default function DashboardPage() {
             window.addEventListener("storage-update", callback)
             return () => window.removeEventListener("storage-update", callback)
         },
-        () => typeof window !== 'undefined' ? localStorage.getItem('atria_fitness_data') : null,
+        () => typeof window !== 'undefined' ? localStorage.getItem('atria_fitness_data_v2') : null,
         () => null
     )
 
@@ -52,8 +52,9 @@ export default function DashboardPage() {
         // Count total students today (sum of attendees)
         const todayStudentsFactor = classesToday.reduce((acc, curr) => acc + (curr.attendees ? curr.attendees.length : 0), 0)
 
-        // Pending
-        const countPending = classes.filter(c => c.status === 'scheduled').length
+        // Pending (scheduled, confirmed, or rescheduled)
+        const pendingStatuses = ['scheduled', 'confirmed', 'rescheduled']
+        const countPending = classes.filter(c => pendingStatuses.includes(c.status)).length
 
         // Completed
         const countCompleted = classes.filter(c => c.status === 'completed').length
@@ -65,10 +66,10 @@ export default function DashboardPage() {
             todayStudentsFactor
         }
 
-        // Upcoming: scheduled and today onwards, sort by date/time
+        // Upcoming: pending statuses and today onwards, sort by date/time
         const now = new Date()
         const upcoming = classes
-            .filter(c => c.status === 'scheduled')
+            .filter(c => pendingStatuses.includes(c.status))
             .sort((a, b) => {
                 const dateA = new Date(`${a.date}T${a.startTime}`)
                 const dateB = new Date(`${b.date}T${b.startTime}`)
