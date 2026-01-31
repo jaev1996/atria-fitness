@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sidebar } from "@/components/shared/sidebar"
-import { PlusCircle, Search, Eye, Trash2, User, Filter, Download, Cross, ShieldAlert, HeartPulse } from "lucide-react"
+import { PlusCircle, Search, Eye, Trash2, User, Download, Cross, ShieldAlert } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
@@ -19,7 +19,9 @@ import { PaginationControl } from "@/components/shared/pagination-control"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
-export default function StudentsPage() {
+import { Suspense } from "react"
+
+function StudentsContent() {
     const [students, setStudents] = useState<Student[]>([])
 
     // Create Student UI State
@@ -46,7 +48,7 @@ export default function StudentsPage() {
     }, [])
 
     // --- customFilter logic for advanced filtering ---
-    const customFilter = (student: Student, filters: Record<string, any>) => {
+    const customFilter = (student: Student, filters: Record<string, string>) => {
         // 1. Discipline/Plan Filter
         if (filters.planType && filters.planType !== 'all') {
             const currentPlan = student.plans?.[0]?.nombreOriginal || "Sin Plan";
@@ -392,7 +394,7 @@ export default function StudentsPage() {
                                                                 variant={p.creditos <= 1 ? "destructive" : "secondary"}
                                                                 className="text-[10px] px-1.5 py-0"
                                                             >
-                                                                {p.nombreOriginal} "{p.disciplina}": {p.creditos}
+                                                                {p.nombreOriginal} &quot;{p.disciplina}&quot;: {p.creditos}
                                                             </Badge>
                                                         ))
                                                     ) : (
@@ -435,5 +437,13 @@ export default function StudentsPage() {
                 </div>
             </main>
         </div>
+    )
+}
+
+export default function StudentsPage() {
+    return (
+        <Suspense fallback={<div className="flex h-screen items-center justify-center">Cargando...</div>}>
+            <StudentsContent />
+        </Suspense>
     )
 }

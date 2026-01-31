@@ -19,7 +19,9 @@ import { useFilter } from "@/hooks/useFilter"
 import { PaginationControl } from "@/components/shared/pagination-control"
 import { EmptyState } from "@/components/shared/empty-state"
 
-export default function InstructorsPage() {
+import { Suspense } from "react"
+
+function InstructorsContent() {
     const [instructors, setInstructors] = useState<Instructor[]>([])
     // Removed old states in favor of hook
     const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -332,5 +334,13 @@ export default function InstructorsPage() {
                 </Dialog>
             </main>
         </div>
+    )
+}
+
+export default function InstructorsPage() {
+    return (
+        <Suspense fallback={<div className="flex h-screen items-center justify-center">Cargando...</div>}>
+            <InstructorsContent />
+        </Suspense>
     )
 }
