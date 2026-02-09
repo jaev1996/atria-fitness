@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Dumbbell } from "lucide-react"
 import { toast } from "sonner"
 import { useAuth } from "@/hooks/useAuth"
+import { db } from "@/lib/storage"
 
 export default function LoginPage() {
     const { login } = useAuth(false)
@@ -16,12 +17,25 @@ export default function LoginPage() {
 
     const handleLogin = (e: React.FormEvent) => {
         e.preventDefault()
+
+        // Admin Login
         if (email === "master@atriafit.com" && password === "12345678") {
-            login()
-            toast.success("Inicio de sesión exitoso")
-        } else {
-            toast.error("Credenciales inválidas. Intenta con master@atriafit.com / 12345678")
+            login('admin')
+            toast.success("Inicio de sesión exitoso (Admin)")
+            return
         }
+
+        // Instructor Login
+        const instructors = db.getInstructors()
+        const foundInstructor = instructors.find(i => i.email === email)
+
+        if (foundInstructor && password === "atria2026") {
+            login('instructor', foundInstructor.id)
+            toast.success(`Bienvenida, ${foundInstructor.name}`)
+            return
+        }
+
+        toast.error("Credenciales inválidas.")
     }
 
     return (

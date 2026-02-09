@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react"
 import { db, Student, ClassSession, ClassStatus, Instructor, Attendee } from "@/lib/storage"
+import { useAuth } from "@/hooks/useAuth"
 import { Sidebar } from "@/components/shared/sidebar"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -54,6 +55,8 @@ export default function CalendarPage() {
     const [students, setStudents] = useState<Student[]>([])
     const [instructors, setInstructors] = useState<Instructor[]>([])
 
+    const { role, userId, loading: authLoading } = useAuth(true)
+
     // UI State
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [studentToAdd, setStudentToAdd] = useState<string>("")
@@ -71,6 +74,7 @@ export default function CalendarPage() {
         maxCapacity: number;
         id?: string;
         attendees: Attendee[];
+        isPrivate?: boolean;
     }>({
         instructorId: "",
         date: "",
@@ -80,15 +84,23 @@ export default function CalendarPage() {
         status: "scheduled",
         room: 'sala-pole',
         maxCapacity: 5,
-        attendees: []
+        attendees: [],
+        isPrivate: false
     })
 
     // Load Initial Data
     const loadData = useCallback(() => {
-        setClasses(db.getClasses())
+        let allClasses = db.getClasses()
+
+        // Filter classes for instructor role
+        if (role === 'instructor' && userId) {
+            allClasses = allClasses.filter(c => c.instructorId === userId)
+        }
+
+        setClasses(allClasses)
         setStudents(db.getStudents())
         setInstructors(db.getInstructors())
-    }, [])
+    }, [role, userId])
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -140,22 +152,26 @@ export default function CalendarPage() {
                 status: existingClass.status as ClassStatus,
                 room: existingClass.room,
                 maxCapacity: existingClass.maxCapacity,
-                attendees: existingClass.attendees
+                attendees: existingClass.attendees,
+                isPrivate: existingClass.isPrivate ?? false
             })
-        } else {
+            setIsDialogOpen(true)
+        } else if (role === 'admin' || role === null) {
+            // Explicitly allow if admin or still loading role (default for master)
             setFormData({
                 instructorId: "",
                 date: dateStr,
                 startTime: time,
-                type: defaultDiscipline, // Auto-set discipline based on room
+                type: defaultDiscipline,
                 notes: "",
                 status: "scheduled",
                 room: activeRoom,
                 maxCapacity: 5,
-                attendees: []
+                attendees: [],
+                isPrivate: false
             })
+            setIsDialogOpen(true)
         }
-        setIsDialogOpen(true)
     }
 
     const checkInstructorCollision = (instructorId: string, date: string, time: string, excludeClassId?: string) => {
@@ -198,7 +214,8 @@ export default function CalendarPage() {
             status: formData.status,
             room: formData.room,
             maxCapacity: formData.maxCapacity,
-            attendees: formData.attendees
+            attendees: formData.attendees,
+            isPrivate: formData.isPrivate
         }
 
         const [h, m] = formData.startTime.split(':').map(Number)
@@ -209,7 +226,8 @@ export default function CalendarPage() {
                 ...classData,
                 id: formData.id,
                 endTime,
-                attendees: formData.attendees
+                attendees: formData.attendees,
+                isPrivate: formData.isPrivate
             })
             toast.success("Clase actualizada")
         } else {
@@ -291,6 +309,8 @@ export default function CalendarPage() {
         return colors[Math.abs(hash) % colors.length];
     }
 
+    if (authLoading) return null
+
     return (
         <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
             <Sidebar />
@@ -363,8 +383,15 @@ export default function CalendarPage() {
                                                 return (
                                                     <div
                                                         key={i}
-                                                        className="border-r dark:border-slate-700 relative p-1 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/50 cursor-pointer group"
-                                                        onClick={() => handleSlotClick(date, hour)}
+                                                        className={cn(
+                                                            "border-r dark:border-slate-700 relative p-1 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/50 group",
+                                                            classSession || role !== 'instructor' ? "cursor-pointer" : "cursor-default"
+                                                        )}
+                                                        onClick={() => {
+                                                            if (classSession || role !== 'instructor') {
+                                                                handleSlotClick(date, hour)
+                                                            }
+                                                        }}
                                                     >
                                                         {classSession ? (
                                                             <div className={cn(
@@ -387,9 +414,11 @@ export default function CalendarPage() {
                                                                 </div>
                                                             </div>
                                                         ) : (
-                                                            <div className="hidden group-hover:flex h-full w-full items-center justify-center text-slate-300 dark:text-slate-600">
-                                                                <Plus className="h-6 w-6" />
-                                                            </div>
+                                                            role !== 'instructor' && (
+                                                                <div className="hidden group-hover:flex h-full w-full items-center justify-center text-slate-300 dark:text-slate-600">
+                                                                    <Plus className="h-6 w-6" />
+                                                                </div>
+                                                            )
                                                         )}
                                                     </div>
                                                 )
@@ -401,10 +430,10 @@ export default function CalendarPage() {
                         ))}
                     </Tabs>
                 </div>
-            </main>
+            </main >
 
             {/* Class Dialog */}
-            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            < Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen} >
                 <DialogContent className="max-w-2xl h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2">
@@ -423,6 +452,13 @@ export default function CalendarPage() {
                         </DialogTitle>
                     </DialogHeader>
 
+                    {role === 'instructor' ? (
+                        <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg flex items-center gap-2 mb-2">
+                            <Sparkles className="h-4 w-4 text-primary" />
+                            <span className="text-sm text-blue-800">Vista de solo lectura del Instructor</span>
+                        </div>
+                    ) : null}
+
                     <div className="grid gap-6 py-4">
                         {/* CLASS DETAILS SECTION */}
                         <section className="space-y-4 border-b pb-4">
@@ -432,11 +468,20 @@ export default function CalendarPage() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
                                     <Label>Fecha</Label>
-                                    <Input type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} />
+                                    <Input
+                                        type="date"
+                                        value={formData.date}
+                                        onChange={e => setFormData({ ...formData, date: e.target.value })}
+                                        disabled={role === 'instructor'}
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Hora (1 Hora de Duración)</Label>
-                                    <Select value={formData.startTime} onValueChange={v => setFormData({ ...formData, startTime: v })}>
+                                    <Select
+                                        value={formData.startTime}
+                                        onValueChange={v => setFormData({ ...formData, startTime: v })}
+                                        disabled={role === 'instructor'}
+                                    >
                                         <SelectTrigger>
                                             <SelectValue />
                                         </SelectTrigger>
@@ -454,7 +499,11 @@ export default function CalendarPage() {
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Instructor</Label>
-                                    <Select value={formData.instructorId} onValueChange={v => setFormData({ ...formData, instructorId: v })}>
+                                    <Select
+                                        value={formData.instructorId}
+                                        onValueChange={v => setFormData({ ...formData, instructorId: v })}
+                                        disabled={role === 'instructor'}
+                                    >
                                         <SelectTrigger>
                                             <SelectValue placeholder="Seleccionar..." />
                                         </SelectTrigger>
@@ -476,11 +525,21 @@ export default function CalendarPage() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
                                     <Label>Capacidad Máxima</Label>
-                                    <Input type="number" min={1} value={formData.maxCapacity} onChange={e => setFormData({ ...formData, maxCapacity: parseInt(e.target.value) })} />
+                                    <Input
+                                        type="number"
+                                        min={1}
+                                        value={formData.maxCapacity}
+                                        onChange={e => setFormData({ ...formData, maxCapacity: parseInt(e.target.value) })}
+                                        disabled={role === 'instructor'}
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Estado</Label>
-                                    <Select value={formData.status} onValueChange={v => setFormData({ ...formData, status: v as ClassStatus })}>
+                                    <Select
+                                        value={formData.status}
+                                        onValueChange={v => setFormData({ ...formData, status: v as ClassStatus })}
+                                        disabled={role === 'instructor'}
+                                    >
                                         <SelectTrigger><SelectValue /></SelectTrigger>
                                         <SelectContent>
                                             {Object.entries(STATUS_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}
@@ -488,11 +547,24 @@ export default function CalendarPage() {
                                     </Select>
                                 </div>
                             </div>
-                            <div className="grid gap-2">
-                                <Button onClick={handleSaveClass} className="w-full bg-primary text-primary-foreground">
-                                    {formData.id ? "Guardar Cambios de Clase" : "Crear Clase"}
-                                </Button>
+                            <div className="flex items-center space-x-2 pt-2 pb-2">
+                                <Checkbox
+                                    id="isPrivate"
+                                    checked={formData.isPrivate}
+                                    onCheckedChange={(c) => setFormData({ ...formData, isPrivate: c as boolean })}
+                                    disabled={role === 'instructor'}
+                                />
+                                <Label htmlFor="isPrivate" className="font-semibold text-purple-600 dark:text-purple-400 flex items-center gap-2">
+                                    <Sparkles className="h-4 w-4" /> ¿Es Clase Privada?
+                                </Label>
                             </div>
+                            {role !== 'instructor' && (
+                                <div className="grid gap-2">
+                                    <Button onClick={handleSaveClass} className="w-full bg-primary text-primary-foreground">
+                                        {formData.id ? "Guardar Cambios de Clase" : "Crear Clase"}
+                                    </Button>
+                                </div>
+                            )}
                         </section>
 
                         {/* ATTENDEES SECTION - Only visible if class exists */}
@@ -505,29 +577,31 @@ export default function CalendarPage() {
                                     </span>
                                 </h3>
 
-                                <div className="flex gap-2 items-end">
-                                    <div className="flex-1 space-y-2">
-                                        <Select value={studentToAdd} onValueChange={setStudentToAdd}>
-                                            <SelectTrigger>
-                                                <SelectValue placeholder="Seleccionar alumna para inscribir..." />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                {students.map(s => (
-                                                    <SelectItem key={s.id} value={s.id}>{s.name} ({s.plans?.[0]?.nombreOriginal || "Sin Plan"})</SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                {role !== 'instructor' && (
+                                    <div className="flex gap-2 items-end">
+                                        <div className="flex-1 space-y-2">
+                                            <Select value={studentToAdd} onValueChange={setStudentToAdd}>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Seleccionar alumna para inscribir..." />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    {students.map(s => (
+                                                        <SelectItem key={s.id} value={s.id}>{s.name} ({s.plans?.[0]?.nombreOriginal || "Sin Plan"})</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                        <div className="flex items-center space-x-2 pb-2">
+                                            <Checkbox id="courtesy" checked={isCourtesy} onCheckedChange={(c) => setIsCourtesy(c as boolean)} />
+                                            <label htmlFor="courtesy" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                                Cortesía
+                                            </label>
+                                        </div>
+                                        <Button onClick={handleAddStudent} disabled={!studentToAdd} size="sm">
+                                            <Plus className="h-4 w-4" /> Inscribir
+                                        </Button>
                                     </div>
-                                    <div className="flex items-center space-x-2 pb-2">
-                                        <Checkbox id="courtesy" checked={isCourtesy} onCheckedChange={(c) => setIsCourtesy(c as boolean)} />
-                                        <label htmlFor="courtesy" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                            Cortesía
-                                        </label>
-                                    </div>
-                                    <Button onClick={handleAddStudent} disabled={!studentToAdd} size="sm">
-                                        <Plus className="h-4 w-4" /> Inscribir
-                                    </Button>
-                                </div>
+                                )}
 
                                 <div className="border rounded-md divide-y max-h-[200px] overflow-y-auto">
                                     {formData.attendees.length === 0 ? (
@@ -548,9 +622,11 @@ export default function CalendarPage() {
                                                         </span>
                                                     )}
                                                 </div>
-                                                <Button variant="ghost" size="sm" className="h-6 w-6 text-red-500 hover:bg-red-50" onClick={() => handleRemoveStudent(attendee.studentId)}>
-                                                    <Trash className="h-3 w-3" />
-                                                </Button>
+                                                {role !== 'instructor' && (
+                                                    <Button variant="ghost" size="sm" className="h-6 w-6 text-red-500 hover:bg-red-50" onClick={() => handleRemoveStudent(attendee.studentId)}>
+                                                        <Trash className="h-3 w-3" />
+                                                    </Button>
+                                                )}
                                             </div>
                                         ))
                                     )}
@@ -560,7 +636,7 @@ export default function CalendarPage() {
                     </div>
 
                     <DialogFooter className="gap-2 sm:gap-0 border-t pt-4">
-                        {formData.id && (
+                        {formData.id && role !== 'instructor' && (
                             <Button variant="ghost" className="text-red-500 hover:bg-red-50 hover:text-red-600 mr-auto" onClick={handleDeleteClass}>
                                 Eliminar Clase
                             </Button>
@@ -568,7 +644,7 @@ export default function CalendarPage() {
                         <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cerrar</Button>
                     </DialogFooter>
                 </DialogContent>
-            </Dialog>
-        </div>
+            </Dialog >
+        </div >
     )
 }

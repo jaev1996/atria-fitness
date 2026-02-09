@@ -1,4 +1,4 @@
-import { RoomId } from "@/constants/config";
+import { RoomId, ROOMS } from "@/constants/config";
 
 // Tipos básicos
 export type HistoryEntry = {
@@ -23,7 +23,7 @@ export type Payment = {
 // Plan de la alumna
 export type StudentPlan = {
     id: string;
-    disciplina: string; // e.g. "Pole Sport", "Yoga", "General"
+    disciplina: string; // e.g. "Pole Exotic", "Yoga", "General"
     creditos: number; // Remaining credits
     activo: boolean;
     nombreOriginal: string; // "Pack 8 Clases"
@@ -62,7 +62,19 @@ export type Instructor = {
     email?: string;
     phone?: string;
     bio?: string;
-    ratePerClass?: number; // Costo por clase impartida
+    ratePerClass?: number; // Costo por clase impartida (Deprecado - Usar tiers)
+};
+
+export type InstructorPayment = {
+    id: string;
+    instructorId: string;
+    instructorName: string;
+    date: string; // Fecha en que se registra el pago
+    amount: number;
+    startDate: string; // Inicio del rango pagado
+    endDate: string; // Fin del rango pagado
+    classIds: string[]; // IDs de las clases incluidas en este pago
+    notes?: string;
 };
 
 export type ClassStatus = 'scheduled' | 'confirmed' | 'rescheduled' | 'cancelled' | 'completed';
@@ -90,12 +102,45 @@ export type ClassSession = {
     attendees: Attendee[];
 
     notes?: string;
+    isPrivate?: boolean;
+    paymentId?: string; // ID del pago al instructor al que pertenece esta clase
+};
+
+export const calculateClassPayment = (classSession: ClassSession): number => {
+    const state = db.getAll();
+    const roomSettings = state.settings?.roomRates?.[classSession.room];
+
+    // Si no hay settings guardados, intentar usar los estáticos de ROOMS
+    const fallbackRoom = ROOMS.find(r => r.id === classSession.room);
+
+    const privateRate = roomSettings?.privateRate ?? fallbackRoom?.privateRate ?? 25;
+    const rates = roomSettings?.rates ?? fallbackRoom?.rates ?? [];
+
+    // Si es clase privada, el precio es fijo
+    if (classSession.isPrivate) return privateRate;
+
+    // Solo se cuentan alumnos con estado 'booked' (asistentes)
+    const assistants = classSession.attendees.filter(a => a.status === 'booked').length;
+
+    // Buscar el tier correspondiente
+    const tier = rates.find(t =>
+        assistants >= t.min && (t.max === null || assistants <= t.max)
+    );
+
+    return tier ? tier.price : 0;
 };
 
 export type StorageData = {
     students: Student[];
     instructors: Instructor[];
     classes: ClassSession[];
+    instructorPayments: InstructorPayment[];
+    settings?: {
+        roomRates: Record<string, {
+            privateRate: number;
+            rates: { min: number, max: number | null, price: number }[];
+        }>;
+    };
 };
 
 const STORAGE_KEY = 'atria_fitness_data_v2';
@@ -103,7 +148,8 @@ const STORAGE_KEY = 'atria_fitness_data_v2';
 const DEFAULT_DATA: StorageData = {
     students: [],
     instructors: [],
-    classes: []
+    classes: [],
+    instructorPayments: []
 };
 
 export const db = {
@@ -119,7 +165,9 @@ export const db = {
             return {
                 students: parsed.students || [],
                 instructors: parsed.instructors || [],
-                classes: parsed.classes || []
+                classes: parsed.classes || [],
+                instructorPayments: parsed.instructorPayments || [],
+                settings: parsed.settings
             };
         } catch (e) {
             console.error("Error parsing storage data", e);
@@ -144,13 +192,14 @@ export const db = {
                 { id: "s5", name: "Elena Torres", email: "elena@example.com", phone: "555-0005", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "guest", plans: [], payments: [], history: [] },
             ],
             instructors: [
-                { id: "i1", name: "Valentina (Pole)", specialties: ["Pole Dance"], email: "valentina@atria.com", phone: "555-1111" },
+                { id: "i1", name: "Valentina (Pole)", specialties: ["Pole Exotic"], email: "valentina@atria.com", phone: "555-1111" },
                 { id: "i2", name: "Camila (Yoga)", specialties: ["Yoga"], email: "camila@atria.com", phone: "555-2222" },
                 { id: "i3", name: "Sofía (Telas)", specialties: ["Telas"], email: "sofia@atria.com", phone: "555-3333" },
                 { id: "i4", name: "Lucía (Glúteos)", specialties: ["Glúteos"], email: "lucia@atria.com", phone: "555-4444" },
-                { id: "i5", name: "Andrea (Master)", specialties: ["Pole Dance", "Yoga", "Telas", "Glúteos"], email: "andrea@atria.com", phone: "555-5555" }
+                { id: "i5", name: "Andrea (Master)", specialties: ["Pole Exotic", "Yoga", "Telas", "Glúteos"], email: "andrea@atria.com", phone: "555-5555" }
             ],
-            classes: []
+            classes: [],
+            instructorPayments: []
         };
         db.save(initialData);
         return initialData;
@@ -322,7 +371,8 @@ export const db = {
             ...classSession,
             id: Date.now().toString(),
             endTime,
-            attendees: []
+            attendees: [],
+            isPrivate: classSession.isPrivate ?? false
         };
         state.classes.push(newClass);
         db.save(state);
@@ -359,6 +409,11 @@ export const db = {
                                     notes: `Instructor: ${classData.instructorName}`,
                                     cost: 0
                                 });
+
+                                // Autodelete plan if credits reach 0
+                                if (plan.creditos <= 0 && plan.nombreOriginal !== 'Ilimitado') {
+                                    student.plans = student.plans.filter(p => p.id !== plan.id);
+                                }
                             }
                         }
                     }
@@ -412,8 +467,8 @@ export const db = {
                     p.disciplina === classSession.type ||
                     classSession.type.includes(p.disciplina) ||
                     p.disciplina.includes(classSession.type) ||
-                    (p.disciplina === 'Pole Dance' && classSession.type === 'Pole Sport') || // Compatibility
-                    (p.disciplina === 'Pole Sport' && classSession.type === 'Pole Dance') || // Compatibility
+                    (p.disciplina === 'Pole Exotic' && classSession.type === 'Pole Sport') || // Compatibility
+                    (p.disciplina === 'Pole Sport' && classSession.type === 'Pole Exotic') || // Compatibility
                     p.disciplina === 'General'
                 )
             );
@@ -474,5 +529,62 @@ export const db = {
         });
 
         return !conflict; // Returns true if available (no conflict)
+    },
+
+    // Settings
+    getSettings: () => db.getAll().settings,
+    updateRoomRate: (roomId: string, data: { privateRate: number, rates: { min: number, max: number | null, price: number }[] }) => {
+        const state = db.getAll();
+        if (!state.settings) state.settings = { roomRates: {} };
+        if (!state.settings.roomRates) state.settings.roomRates = {};
+        state.settings.roomRates[roomId] = data;
+        db.save(state);
+    },
+
+    // Instructor Payments
+    getInstructorPayments: (instructorId?: string) => {
+        const payments = db.getAll().instructorPayments || [];
+        if (instructorId) {
+            return payments.filter(p => p.instructorId === instructorId);
+        }
+        return payments;
+    },
+
+    addInstructorPayment: (payment: Omit<InstructorPayment, 'id'>) => {
+        const state = db.getAll();
+        if (!state.instructorPayments) state.instructorPayments = [];
+
+        const newPayment: InstructorPayment = {
+            ...payment,
+            id: `pay-${Date.now()}`
+        };
+
+        state.instructorPayments.push(newPayment);
+
+        // Marcar las clases como pagadas
+        state.classes.forEach(c => {
+            if (newPayment.classIds.includes(c.id)) {
+                c.paymentId = newPayment.id;
+            }
+        });
+
+        db.save(state);
+        return newPayment;
+    },
+
+    deleteInstructorPayment: (id: string) => {
+        const state = db.getAll();
+        if (state.instructorPayments) {
+            state.instructorPayments = state.instructorPayments.filter(p => p.id !== id);
+
+            // Desmarcar las clases vinculadas
+            state.classes.forEach(c => {
+                if (c.paymentId === id) {
+                    delete c.paymentId;
+                }
+            });
+
+            db.save(state);
+        }
     }
 };

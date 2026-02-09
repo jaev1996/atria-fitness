@@ -44,7 +44,10 @@ function StudentsContent() {
     }
 
     useEffect(() => {
-        loadStudents()
+        const timer = setTimeout(() => {
+            loadStudents()
+        }, 0)
+        return () => clearTimeout(timer)
     }, [])
 
     // --- customFilter logic for advanced filtering ---
@@ -271,9 +274,11 @@ function StudentsContent() {
                                             </SelectTrigger>
                                             <SelectContent>
                                                 <SelectItem value="Sin Plan">Sin Plan</SelectItem>
-                                                <SelectItem value="Clase Suelta">Clase Suelta</SelectItem>
+                                                <SelectItem value="Clase Suelta">Clase Suelta (1 Clase)</SelectItem>
+                                                <SelectItem value="Pack 4 Clases">Pack 4 Clases</SelectItem>
                                                 <SelectItem value="Pack 8 Clases">Pack 8 Clases</SelectItem>
                                                 <SelectItem value="Pack 12 Clases">Pack 12 Clases</SelectItem>
+                                                <SelectItem value="Pack 24 Clases">Pack 24 Clases</SelectItem>
                                                 <SelectItem value="Ilimitado">Ilimitado</SelectItem>
                                             </SelectContent>
                                         </Select>
@@ -309,8 +314,10 @@ function StudentsContent() {
                                     <SelectItem value="all">Todos los Planes</SelectItem>
                                     <SelectItem value="Sin Plan">Sin Plan</SelectItem>
                                     <SelectItem value="Clase Suelta">Clase Suelta</SelectItem>
+                                    <SelectItem value="Pack 4">Pack 4 Clases</SelectItem>
                                     <SelectItem value="Pack 8">Pack 8 Clases</SelectItem>
                                     <SelectItem value="Pack 12">Pack 12 Clases</SelectItem>
+                                    <SelectItem value="Pack 24">Pack 24 Clases</SelectItem>
                                     <SelectItem value="Ilimitado">Ilimitado</SelectItem>
                                 </SelectContent>
                             </Select>

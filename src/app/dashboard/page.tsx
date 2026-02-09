@@ -45,7 +45,7 @@ export default function DashboardPage() {
         const classesToday = classes.filter(c => {
             try {
                 return c.date && isToday(parseISO(c.date)) && c.status !== 'cancelled'
-            } catch (e) { return false }
+            } catch { return false }
         })
         const countToday = classesToday.length
 

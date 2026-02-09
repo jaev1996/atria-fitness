@@ -12,18 +12,25 @@ const menuItems = [
 ]
 
 export function Sidebar() {
-    const { logout } = useAuth(false)
+    const { logout, role } = useAuth(false)
+
+    const filteredItems = menuItems.filter(item => {
+        if (role === 'instructor') {
+            return item.href === '/dashboard/calendar';
+        }
+        return true;
+    });
 
     return (
         <div className="flex h-screen w-64 flex-col border-r bg-white dark:bg-slate-900 dark:border-slate-800">
             <div className="flex h-16 items-center border-b px-6 dark:border-slate-800">
-                <Link href="/dashboard" className="flex items-center gap-2 font-bold text-primary">
+                <Link href={role === 'instructor' ? "/dashboard/calendar" : "/dashboard"} className="flex items-center gap-2 font-bold text-primary">
                     <Dumbbell className="h-6 w-6" />
                     <span className="text-xl">Atria Fitness</span>
                 </Link>
             </div>
             <nav className="flex-1 space-y-1 p-4">
-                {menuItems.map((item) => (
+                {filteredItems.map((item) => (
                     <Link
                         key={item.label}
                         href={item.href}

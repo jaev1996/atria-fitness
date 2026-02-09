@@ -16,6 +16,7 @@ import { ArrowLeft, Trash2, Activity, AlertCircle, HeartPulse, ShieldAlert, Phon
 import Link from "next/link"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { DISCIPLINES } from "@/constants/config"
 
 export default function StudentDetailsPage() {
     const params = useParams()
@@ -48,7 +49,7 @@ export default function StudentDetailsPage() {
         credits: 8,
         amount: "",
         method: "Transferencia",
-        discipline: "Pole Dance" // Standardized
+        discipline: "Pole Exotic" // Standardized
     })
 
     // Edit Forms
@@ -155,7 +156,7 @@ export default function StudentDetailsPage() {
                 credits: 8,
                 amount: "",
                 method: "Transferencia",
-                discipline: "Pole Dance"
+                discipline: "Pole Exotic"
             })
             loadStudent()
         }
@@ -288,9 +289,9 @@ export default function StudentDetailsPage() {
                                                 <Select value={newPayment.discipline} onValueChange={(v) => setNewPayment({ ...newPayment, discipline: v })}>
                                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="Pole Dance">Pole Dance</SelectItem>
-                                                        <SelectItem value="Yoga">Yoga</SelectItem>
-                                                        <SelectItem value="Telas">Telas</SelectItem>
+                                                        {DISCIPLINES.map(d => (
+                                                            <SelectItem key={d} value={d}>{d}</SelectItem>
+                                                        ))}
                                                         <SelectItem value="General">General (Todas)</SelectItem>
                                                     </SelectContent>
                                                 </Select>

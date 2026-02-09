@@ -5,13 +5,13 @@ import { db, Instructor } from "@/lib/storage"
 import { Sidebar } from "@/components/shared/sidebar"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, Edit, Search, User, Download, Cross, Eye } from "lucide-react"
+import { Plus, Edit, Search, User, Eye, Trash2, Cross } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { DISCIPLINES } from "@/constants/config"
@@ -48,11 +48,14 @@ function InstructorsContent() {
     }
 
     useEffect(() => {
-        loadInstructors()
+        const timer = setTimeout(() => {
+            loadInstructors()
+        }, 0)
+        return () => clearTimeout(timer)
     }, [])
 
     // --- customFilter logic for advanced filtering ---
-    const customFilter = (item: Instructor, filters: Record<string, any>) => {
+    const customFilter = (item: Instructor, filters: Record<string, string>) => {
         // 1. Specialty Filter
         if (filters.specialty && filters.specialty !== 'all') {
             if (!item.specialties?.includes(filters.specialty)) return false;
@@ -292,7 +295,7 @@ function InstructorsContent() {
                                     <Input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="555-0000" />
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label>Tarifa por Clase (Bs)</Label>
+                                    <Label>Tarifa por Clase ($)</Label>
                                     <Input
                                         type="number"
                                         value={formData.ratePerClass || ""}
