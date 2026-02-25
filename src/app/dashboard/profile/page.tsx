@@ -13,7 +13,8 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { Users, Mail, Phone, History, Calendar as CalendarIcon, Wallet, User, Lock, Save, LogOut } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Users, Mail, Phone, History, Calendar as CalendarIcon, Wallet, User, Lock, Save, LogOut, Eye, School } from "lucide-react"
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns"
 import { useAuth } from "@/hooks/useAuth"
 import { toast } from "sonner"
@@ -37,6 +38,9 @@ export default function ProfilePage() {
         new: "",
         confirm: ""
     })
+
+    const [selectedPayment, setSelectedPayment] = useState<InstructorPayment | null>(null)
+    const [isDetailsOpen, setIsDetailsOpen] = useState(false)
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -125,6 +129,15 @@ export default function ProfilePage() {
             todayClasses: todayClasses.sort((a, b) => a.startTime.localeCompare(b.startTime))
         }
     }, [classes, instructor, userId, dateRange, role])
+
+    const handleViewPaymentDetails = (payment: InstructorPayment) => {
+        setSelectedPayment(payment)
+        setIsDetailsOpen(true)
+    }
+
+    const getClassesForPayment = (classIds: string[]) => {
+        return classes.filter(c => classIds.includes(c.id))
+    }
 
     if (!mounted || authLoading) return null
 
@@ -461,7 +474,7 @@ export default function ProfilePage() {
                                                         </TableRow>
                                                     ) : (
                                                         paymentHistory.sort((a, b) => b.date.localeCompare(a.date)).map(p => (
-                                                            <TableRow key={p.id}>
+                                                            <TableRow key={p.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 cursor-pointer" onClick={() => handleViewPaymentDetails(p)}>
                                                                 <TableCell className="text-sm font-medium">
                                                                     {format(parseISO(p.date), "dd/MM/yyyy")}
                                                                 </TableCell>
@@ -469,10 +482,15 @@ export default function ProfilePage() {
                                                                     {format(parseISO(p.startDate), "dd/MM")} - {format(parseISO(p.endDate), "dd/MM/yyyy")}
                                                                 </TableCell>
                                                                 <TableCell className="text-right text-xs">
-                                                                    {p.classIds.length} clases
+                                                                    <Badge variant="secondary" className="font-normal text-[10px]">{p.classIds.length} clases</Badge>
                                                                 </TableCell>
                                                                 <TableCell className="text-right font-bold text-green-600 text-sm">
                                                                     {formatCurrency(p.amount)}
+                                                                </TableCell>
+                                                                <TableCell className="text-right">
+                                                                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary">
+                                                                        <Eye className="h-4 w-4" />
+                                                                    </Button>
                                                                 </TableCell>
                                                             </TableRow>
                                                         ))
@@ -486,6 +504,91 @@ export default function ProfilePage() {
                         </Tabs>
                     </div>
                 </div>
+
+                {/* Details Dialog */}
+                <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
+                    <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2">
+                                <History className="h-5 w-5 text-primary" />
+                                Detalles de Liquidación
+                            </DialogTitle>
+                            <DialogDescription>
+                                Comprobante de pago generado el {selectedPayment && format(parseISO(selectedPayment.date), "dd 'de' MMMM, yyyy")}
+                            </DialogDescription>
+                        </DialogHeader>
+
+                        {selectedPayment && (
+                            <div className="space-y-6">
+                                <div className="grid grid-cols-2 gap-4 bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border">
+                                    <div>
+                                        <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Periodo Liquidado</p>
+                                        <p className="text-sm font-semibold">
+                                            {format(parseISO(selectedPayment.startDate), "dd/MM/yy")} al {format(parseISO(selectedPayment.endDate), "dd/MM/yy")}
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-[10px] uppercase text-slate-500 font-bold mb-1">Total Pagado</p>
+                                        <p className="text-lg font-bold text-green-600">{formatCurrency(selectedPayment.amount)}</p>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <p className="text-sm font-bold mb-3 flex items-center gap-2">
+                                        <School className="h-4 w-4 text-slate-400" />
+                                        Clases Incluidas ({selectedPayment.classIds.length})
+                                    </p>
+                                    <div className="max-height-[300px] overflow-y-auto rounded-lg border">
+                                        <Table>
+                                            <TableHeader className="bg-slate-50 dark:bg-slate-800">
+                                                <TableRow>
+                                                    <TableHead className="text-[10px] uppercase">Fecha / Hora</TableHead>
+                                                    <TableHead className="text-[10px] uppercase">Disciplina</TableHead>
+                                                    <TableHead className="text-right text-[10px] uppercase">Alumnas</TableHead>
+                                                    <TableHead className="text-right text-[10px] uppercase">Monto</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {getClassesForPayment(selectedPayment.classIds).map(c => (
+                                                    <TableRow key={c.id}>
+                                                        <TableCell className="text-xs">
+                                                            <div className="font-bold">{format(parseISO(c.date), "dd/MM")}</div>
+                                                            <div className="text-slate-500">{c.startTime}</div>
+                                                        </TableCell>
+                                                        <TableCell className="text-xs font-medium">{c.type}</TableCell>
+                                                        <TableCell className="text-right text-xs">
+                                                            <div className="flex items-center justify-end gap-1">
+                                                                <Users className="h-3 w-3 text-slate-400" />
+                                                                {c.attendees.length}
+                                                            </div>
+                                                        </TableCell>
+                                                        <TableCell className="text-right text-xs font-bold">
+                                                            {formatCurrency(calculateClassPayment(c))}
+                                                        </TableCell>
+                                                    </TableRow>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
+                                </div>
+
+                                {selectedPayment.notes && (
+                                    <div className="bg-primary/5 p-3 rounded-lg border border-primary/10">
+                                        <p className="text-[10px] uppercase text-primary font-bold mb-1">Notas</p>
+                                        <p className="text-xs italic text-slate-600 dark:text-slate-300">{selectedPayment.notes}</p>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-end gap-2">
+                                    <Button variant="outline" onClick={() => setIsDetailsOpen(false)}>Cerrar</Button>
+                                    <Button className="bg-primary" onClick={() => window.print()}>
+                                        Imprimir Comprobante
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </DialogContent>
+                </Dialog>
             </main>
         </div>
     )

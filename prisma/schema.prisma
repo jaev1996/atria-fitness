@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  INSTRUCTOR
+  STUDENT
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GUEST
+}
+
+enum ClassStatus {
+  SCHEDULED
+  CONFIRMED
+  RESCHEDULED
+  CANCELLED
+  COMPLETED
+}
+
+enum AttendanceStatus {
+  BOOKED
+  CANCELLED
+}
+
+enum AttendanceType {
+  STANDARD
+  COURTESY
+}
+
+enum PaymentMethod {
+  EFECTIVO
+  TRANSFERENCIA
+  TARJETA
+  OTRO
+}
+
+// Unified User model for Auth and Profile
+model User {
+  id        String   @id // We will use Supabase Auth UUID
+  email     String   @unique
+  name      String
+  phone     String?
+  role      UserRole @default(STUDENT)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Instructor specific
+  specialties String[] @default([])
+  bio         String?
+
+  // Student specific (Medical & Info)
+  status           StudentStatus? @default(ACTIVE)
+  medicalInfo      String?
+  allergies        String?
+  injuries         String?
+  conditions       String?
+  emergencyContact String?
+  sportsInfo       String?
+
+  // Relations
+  classesTaught      ClassSession[]      @relation("InstructorClasses")
+  instructorPayments InstructorPayment[]
+
+  // Student Relations
+  plans        StudentPlan[]
+  paymentsMade StudentPayment[]
+  history      StudentHistory[]
+  attendances  Attendee[]
+}
+
+model StudentPlan {
+  id           String    @id @default(cuid())
+  studentId    String
+  student      User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  discipline   String
+  credits      Int
+  isActive     Boolean   @default(true)
+  originalName String
+  expiryDate   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}
+
+model StudentPayment {
+  id        String        @id @default(cuid())
+  studentId String
+  student   User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date      DateTime      @default(now())
+  amount    Float
+  method    PaymentMethod
+  concept   String
+}
+
+model StudentHistory {
+  id        String   @id @default(cuid())
+  studentId String
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date      DateTime @default(now())
+  activity  String
+  notes     String?
+  cost      Float    @default(0)
+}
+
+model ClassSession {
+  id           String      @id @default(cuid())
+  instructorId String
+  instructor   User        @relation("InstructorClasses", fields: [instructorId], references: [id])
+  date         DateTime
+  startTime    String
+  endTime      String
+  status       ClassStatus @default(SCHEDULED)
+  type         String
+  room         String
+  maxCapacity  Int
+  notes        String?
+  isPrivate    Boolean     @default(false)
+
+  paymentId         String?
+  instructorPayment InstructorPayment? @relation(fields: [paymentId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  attendees Attendee[]
+}
+
+model Attendee {
+  id             String           @id @default(cuid())
+  classId        String
+  class          ClassSession     @relation(fields: [classId], references: [id], onDelete: Cascade)
+  studentId      String
+  student        User             @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status         AttendanceStatus @default(BOOKED)
+  attendanceType AttendanceType   @default(STANDARD)
+  creditDeducted Boolean          @default(false)
+}
+
+model InstructorPayment {
+  id           String   @id @default(cuid())
+  instructorId String
+  instructor   User     @relation(fields: [instructorId], references: [id])
+  date         DateTime @default(now())
+  amount       Float
+  startDate    DateTime
+  endDate      DateTime
+  notes        String?
+
+  classes ClassSession[]
+}
+
+model Settings {
+  id              String @id @default("singleton")
+  disciplineRates Json?
+  roomDisciplines Json?
+}
