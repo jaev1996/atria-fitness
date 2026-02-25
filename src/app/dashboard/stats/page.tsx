@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { Sidebar } from "@/components/shared/sidebar"
+import { MobileNav } from "@/components/shared/mobile-nav"
 import { db, ClassSession } from "@/lib/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
 import { Users, CalendarDays, TrendingUp, Percent, Award, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
@@ -110,16 +111,17 @@ export default function StatsPage() {
     }
 
     return (
-        <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
+        <div className="flex flex-col md:flex-row h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
             <Sidebar />
-            <div className="flex-1 flex flex-col h-screen overflow-hidden">
-                <header className="bg-white dark:bg-slate-800 border-b p-6 flex items-center justify-between">
+            <MobileNav />
+            <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
+                <header className="bg-white dark:bg-slate-800 border-b p-4 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                         <TrendingUp className="h-6 w-6 text-primary" />
                         Reportes y Métricas
                     </h1>
 
-                    <div className="flex items-center gap-4 bg-slate-50 dark:bg-slate-900 border rounded-full px-4 py-2 shadow-sm">
+                    <div className="flex items-center justify-between gap-4 bg-slate-50 dark:bg-slate-900 border rounded-full px-4 py-2 shadow-sm w-full sm:w-auto">
                         <Button
                             variant="ghost"
                             size="icon"
@@ -128,7 +130,7 @@ export default function StatsPage() {
                         >
                             <ChevronLeft className="h-5 w-5" />
                         </Button>
-                        <span className="text-sm font-semibold capitalize min-w-[140px] text-center">
+                        <span className="text-xs sm:text-sm font-semibold capitalize min-w-[120px] sm:min-w-[140px] text-center">
                             {selectedDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
                         </span>
                         <Button
@@ -142,9 +144,9 @@ export default function StatsPage() {
                     </div>
                 </header>
 
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
                     {/* KPI Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                         <Card>
                             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                                 <CardTitle className="text-sm font-medium">Clases Totales</CardTitle>

@@ -1,4 +1,4 @@
-import { RoomId, ROOMS } from "@/constants/config";
+import { RoomId } from "@/constants/config";
 
 // Tipos básicos
 export type HistoryEntry = {
@@ -62,7 +62,6 @@ export type Instructor = {
     email?: string;
     phone?: string;
     bio?: string;
-    ratePerClass?: number; // Costo por clase impartida (Deprecado - Usar tiers)
 };
 
 export type InstructorPayment = {
@@ -108,13 +107,14 @@ export type ClassSession = {
 
 export const calculateClassPayment = (classSession: ClassSession): number => {
     const state = db.getAll();
-    const roomSettings = state.settings?.roomRates?.[classSession.room];
+    const disciplineSettings = state.settings?.disciplineRates?.[classSession.type];
 
-    // Si no hay settings guardados, intentar usar los estáticos de ROOMS
-    const fallbackRoom = ROOMS.find(r => r.id === classSession.room);
-
-    const privateRate = roomSettings?.privateRate ?? fallbackRoom?.privateRate ?? 25;
-    const rates = roomSettings?.rates ?? fallbackRoom?.rates ?? [];
+    const privateRate = disciplineSettings?.privateRate ?? 25;
+    const rates = disciplineSettings?.rates ?? [
+        { min: 1, max: 2, price: 10 },
+        { min: 3, max: 4, price: 15 },
+        { min: 5, max: null, price: 20 }
+    ];
 
     // Si es clase privada, el precio es fijo
     if (classSession.isPrivate) return privateRate;
@@ -136,14 +136,16 @@ export type StorageData = {
     classes: ClassSession[];
     instructorPayments: InstructorPayment[];
     settings?: {
-        roomRates: Record<string, {
+        disciplines?: string[]; // Deprecated, kept for compatibility if any
+        disciplineRates: Record<string, {
             privateRate: number;
             rates: { min: number, max: number | null, price: number }[];
         }>;
+        roomDisciplines?: Record<string, string[]>;
     };
 };
 
-const STORAGE_KEY = 'atria_fitness_data_v2';
+const STORAGE_KEY = 'atria_fitness_data_v3';
 
 const DEFAULT_DATA: StorageData = {
     students: [],
@@ -185,18 +187,23 @@ export const db = {
     seed: (): StorageData => {
         const initialData: StorageData = {
             students: [
-                { id: "s1", name: "Ana Martínez", email: "ana@example.com", phone: "555-0001", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [], payments: [], history: [] },
-                { id: "s2", name: "Beatriz López", email: "beatriz@example.com", phone: "555-0002", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [], payments: [], history: [] },
-                { id: "s3", name: "Carla García", email: "carla@example.com", phone: "555-0003", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [], payments: [], history: [] },
-                { id: "s4", name: "Daniela Rivas", email: "daniela@example.com", phone: "555-0004", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [], payments: [], history: [] },
-                { id: "s5", name: "Elena Torres", email: "elena@example.com", phone: "555-0005", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "guest", plans: [], payments: [], history: [] },
+                { id: "s1", name: "Ana Martínez", email: "ana@example.com", phone: "555-0001", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p1", disciplina: "General", creditos: 8, activo: true, nombreOriginal: "Pack 8 Clases" }], payments: [], history: [] },
+                { id: "s2", name: "Beatriz López", email: "beatriz@example.com", phone: "555-0002", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p2", disciplina: "General", creditos: 12, activo: true, nombreOriginal: "Pack 12 Clases" }], payments: [], history: [] },
+                { id: "s3", name: "Carla García", email: "carla@example.com", phone: "555-0003", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p3", disciplina: "General", creditos: 4, activo: true, nombreOriginal: "Pack 4 Clases" }], payments: [], history: [] },
+                { id: "s4", name: "Daniela Rivas", email: "daniela@example.com", phone: "555-0004", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p4", disciplina: "General", creditos: 8, activo: true, nombreOriginal: "Pack 8 Clases" }], payments: [], history: [] },
+                { id: "s5", name: "Elena Torres", email: "elena@example.com", phone: "555-0005", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p5", disciplina: "General", creditos: 20, activo: true, nombreOriginal: "Plan Ilimitado" }], payments: [], history: [] },
+                { id: "s6", name: "Fernanda Luna", email: "fernanda@example.com", phone: "555-0006", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p6", disciplina: "General", creditos: 8, activo: true, nombreOriginal: "Pack 8 Clases" }], payments: [], history: [] },
+                { id: "s7", name: "Gabriela Sol", email: "gabriela@example.com", phone: "555-0007", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p7", disciplina: "General", creditos: 8, activo: true, nombreOriginal: "Pack 8 Clases" }], payments: [], history: [] },
+                { id: "s8", name: "Hilda Paz", email: "hilda@example.com", phone: "555-0008", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p8", disciplina: "General", creditos: 8, activo: true, nombreOriginal: "Pack 8 Clases" }], payments: [], history: [] },
+                { id: "s9", name: "Isabel Rio", email: "isabel@example.com", phone: "555-0009", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p9", disciplina: "General", creditos: 8, activo: true, nombreOriginal: "Pack 8 Clases" }], payments: [], history: [] },
+                { id: "s10", name: "Juana Mar", email: "juana@example.com", phone: "555-0010", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p10", disciplina: "General", creditos: 8, activo: true, nombreOriginal: "Pack 8 Clases" }], payments: [], history: [] },
             ],
             instructors: [
-                { id: "i1", name: "Valentina (Pole)", specialties: ["Pole Exotic"], email: "valentina@atria.com", phone: "555-1111" },
-                { id: "i2", name: "Camila (Yoga)", specialties: ["Yoga"], email: "camila@atria.com", phone: "555-2222" },
-                { id: "i3", name: "Sofía (Telas)", specialties: ["Telas"], email: "sofia@atria.com", phone: "555-3333" },
-                { id: "i4", name: "Lucía (Glúteos)", specialties: ["Glúteos"], email: "lucia@atria.com", phone: "555-4444" },
-                { id: "i5", name: "Andrea (Master)", specialties: ["Pole Exotic", "Yoga", "Telas", "Glúteos"], email: "andrea@atria.com", phone: "555-5555" }
+                { id: "i1", name: "Maria", specialties: ["Flexibilidad", "Yoga"], email: "maria@atria.com", phone: "555-1001" },
+                { id: "i2", name: "Lucia", specialties: ["Telas", "Lira"], email: "lucia@atria.com", phone: "555-1002" },
+                { id: "i3", name: "Paula", specialties: ["Pole", "Heels"], email: "paula@atria.com", phone: "555-1003" },
+                { id: "i4", name: "Elena", specialties: ["Pilates", "Glúteos"], email: "elena@atria.com", phone: "555-1004" },
+                { id: "i5", name: "Sofia", specialties: ["Kangoo"], email: "sofia@atria.com", phone: "555-1005" }
             ],
             classes: [],
             instructorPayments: []
@@ -213,22 +220,22 @@ export const db = {
         return students.find(s => s.id === id);
     },
 
-    addStudent: (data: Omit<Student, 'id' | 'history' | 'payments' | 'plans' | 'status'> & { planType: string, status?: StudentStatus }) => {
+    addStudent: (data: Omit<Student, 'id' | 'history' | 'payments' | 'plans' | 'status'> & { planType: string, discipline?: string, status?: StudentStatus }) => {
         const state = db.getAll();
-        const { planType, ...studentInfo } = data;
+        const { planType, discipline, ...studentInfo } = data;
 
         const initialPlans: StudentPlan[] = [];
-        if (planType) {
+        if (planType && planType !== 'Sin Plan') {
             let credits = 8;
             if (planType === 'Ilimitado') credits = 999;
             if (planType === 'Clase Suelta') credits = 1;
             if (planType === 'Pack 12 Clases') credits = 12;
             if (planType === 'Pack 4 Clases') credits = 4;
-            if (planType === 'Sin Plan') credits = 0;
+            if (planType === 'Pack 24 Clases') credits = 24;
 
             initialPlans.push({
                 id: Date.now().toString(),
-                disciplina: "General",
+                disciplina: discipline || "General",
                 creditos: credits,
                 activo: true,
                 nombreOriginal: planType
@@ -513,12 +520,10 @@ export const db = {
         const state = db.getAll();
         const classes = state.classes || [];
 
-        // Find if there is any class that conflicts
         const conflict = classes.find((c: ClassSession) => {
             if (c.status === 'cancelled') return false;
             if (excludeClassId && c.id === excludeClassId) return false;
 
-            // Check Date & Time overlap
             if (c.date !== date || c.startTime !== startTime) return false;
 
             if (type === 'instructor') {
@@ -528,16 +533,36 @@ export const db = {
             }
         });
 
-        return !conflict; // Returns true if available (no conflict)
+        return !conflict;
+    },
+
+    checkRoomAvailability: (roomId: string, date: string, startTime: string, excludeClassId?: string): boolean => {
+        const state = db.getAll();
+        const classes = state.classes || [];
+
+        const conflict = classes.find((c: ClassSession) => {
+            if (c.status === 'cancelled') return false;
+            if (excludeClassId && c.id === excludeClassId) return false;
+            return c.date === date && c.startTime === startTime && c.room === roomId;
+        });
+
+        return !conflict;
     },
 
     // Settings
     getSettings: () => db.getAll().settings,
-    updateRoomRate: (roomId: string, data: { privateRate: number, rates: { min: number, max: number | null, price: number }[] }) => {
+    updateDisciplineRate: (discipline: string, data: { privateRate: number, rates: { min: number, max: number | null, price: number }[] }) => {
         const state = db.getAll();
-        if (!state.settings) state.settings = { roomRates: {} };
-        if (!state.settings.roomRates) state.settings.roomRates = {};
-        state.settings.roomRates[roomId] = data;
+        if (!state.settings) state.settings = { disciplineRates: {} };
+        if (!state.settings.disciplineRates) state.settings.disciplineRates = {};
+        state.settings.disciplineRates[discipline] = data;
+        db.save(state);
+    },
+    updateRoomDisciplines: (roomId: string, disciplines: string[]) => {
+        const state = db.getAll();
+        if (!state.settings) state.settings = { disciplineRates: {} };
+        if (!state.settings.roomDisciplines) state.settings.roomDisciplines = {};
+        state.settings.roomDisciplines[roomId] = disciplines;
         db.save(state);
     },
 

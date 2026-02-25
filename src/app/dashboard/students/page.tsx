@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sidebar } from "@/components/shared/sidebar"
+import { MobileNav } from "@/components/shared/mobile-nav"
 import { PlusCircle, Search, Eye, Trash2, User, Download, Cross, ShieldAlert } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
@@ -18,6 +19,7 @@ import { useFilter } from "@/hooks/useFilter"
 import { PaginationControl } from "@/components/shared/pagination-control"
 import { EmptyState } from "@/components/shared/empty-state"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { DISCIPLINES } from "@/constants/config"
 
 import { Suspense } from "react"
 
@@ -36,7 +38,8 @@ function StudentsContent() {
         conditions: "",
         emergencyContact: "",
         sportsInfo: "",
-        planType: "Sin Plan"
+        planType: "Sin Plan",
+        discipline: "General"
     })
 
     const loadStudents = () => {
@@ -104,14 +107,15 @@ function StudentsContent() {
             conditions: newStudent.conditions,
             emergencyContact: newStudent.emergencyContact,
             sportsInfo: newStudent.sportsInfo,
-            planType: newStudent.planType
+            planType: newStudent.planType,
+            discipline: newStudent.discipline
         })
         toast.success("Alumna registrada correctamente")
         setIsDialogOpen(false)
         setNewStudent({
             name: "", phone: "", email: "",
             medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "",
-            sportsInfo: "", planType: "Sin Plan"
+            sportsInfo: "", planType: "Sin Plan", discipline: "General"
         })
         loadStudents()
     }
@@ -155,30 +159,31 @@ function StudentsContent() {
     }
 
     return (
-        <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
+        <div className="flex flex-col md:flex-row h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
             <Sidebar />
-            <main className="flex-1 p-8 overflow-y-auto w-full">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <MobileNav />
+            <main className="flex-1 h-full overflow-y-auto overflow-x-hidden p-4 md:p-8 min-w-0">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Gestión de Alumnas</h1>
                         <p className="text-slate-500 text-sm">Administra inscripciones, planes y fichas médicas.</p>
                     </div>
 
-                    <div className="flex gap-2">
-                        <Button variant="outline" onClick={handleExportCSV}>
+                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                        <Button variant="outline" onClick={handleExportCSV} className="w-full sm:w-auto">
                             <Download className="mr-2 h-4 w-4" /> Exportar CSV
                         </Button>
                         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                             <DialogTrigger asChild>
-                                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground w-full sm:w-auto">
                                     <PlusCircle className="mr-2 h-4 w-4" /> Nueva Alumna
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="max-w-2xl h-[80vh] overflow-y-auto">
+                            <DialogContent className="max-w-2xl h-[90vh] sm:h-[80vh] overflow-y-auto">
                                 <DialogHeader>
                                     <DialogTitle>Registrar Nueva Alumna</DialogTitle>
                                 </DialogHeader>
-                                <div className="grid gap-4 py-4 grid-cols-2">
+                                <div className="grid gap-4 py-4 grid-cols-1 sm:grid-cols-2">
                                     <div className="grid gap-2">
                                         <Label htmlFor="name">Nombre Completo *</Label>
                                         <Input
@@ -283,6 +288,22 @@ function StudentsContent() {
                                             </SelectContent>
                                         </Select>
                                     </div>
+                                    {newStudent.planType !== "Sin Plan" && (
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="discipline">Disciplina del Plan</Label>
+                                            <Select value={newStudent.discipline} onValueChange={(v) => setNewStudent({ ...newStudent, discipline: v })}>
+                                                <SelectTrigger>
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="General">General (Todas)</SelectItem>
+                                                    {DISCIPLINES.map(d => (
+                                                        <SelectItem key={d} value={d}>{d}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    )}
                                 </div>
                                 <DialogFooter>
                                     <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
@@ -295,7 +316,7 @@ function StudentsContent() {
 
                 {/* FILTERS TOOLBAR */}
                 <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border shadow-sm mb-6 space-y-4">
-                    <div className="flex flex-col md:flex-row gap-4">
+                    <div className="flex flex-col sm:flex-row gap-4">
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                             <Input
@@ -305,9 +326,9 @@ function StudentsContent() {
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
-                        <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
+                        <div className="flex flex-wrap sm:flex-nowrap gap-2">
                             <Select value={filters.planType || "all"} onValueChange={(v) => setFilter('planType', v)}>
-                                <SelectTrigger className="w-[180px]">
+                                <SelectTrigger className="w-full sm:w-[180px]">
                                     <SelectValue placeholder="Tipo de Plan" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -323,7 +344,7 @@ function StudentsContent() {
                             </Select>
 
                             <Select value={filters.hasMedical || "all"} onValueChange={(v) => setFilter('hasMedical', v)}>
-                                <SelectTrigger className="w-[200px]">
+                                <SelectTrigger className="w-full sm:w-[200px]">
                                     <SelectValue placeholder="Ficha Médica" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -333,7 +354,7 @@ function StudentsContent() {
                             </Select>
 
                             {(filters.planType || filters.hasMedical || searchTerm) && (
-                                <Button variant="ghost" onClick={clearFilters} className="text-destructive hover:bg-destructive/10">
+                                <Button variant="ghost" onClick={clearFilters} className="text-destructive hover:bg-destructive/10 w-full sm:w-auto">
                                     <Cross className="h-4 w-4 mr-2 rotate-45" /> Limpiar
                                 </Button>
                             )}
@@ -342,92 +363,94 @@ function StudentsContent() {
                 </div>
 
                 {/* DATA TABLE */}
-                <div className="bg-white dark:bg-slate-800 rounded-lg border shadow-sm flex flex-col">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Nombre</TableHead>
-                                <TableHead>Plan</TableHead>
-                                <TableHead>Teléfono</TableHead>
-                                <TableHead className="text-right">Acciones</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {paginatedStudents.length === 0 ? (
+                <div className="bg-white dark:bg-slate-800 rounded-lg border shadow-sm flex flex-col overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <Table className="min-w-[800px]">
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={4} className="p-0">
-                                        <EmptyState onAction={clearFilters} />
-                                    </TableCell>
+                                    <TableHead>Nombre</TableHead>
+                                    <TableHead>Plan</TableHead>
+                                    <TableHead>Teléfono</TableHead>
+                                    <TableHead className="text-right">Acciones</TableHead>
                                 </TableRow>
-                            ) : (
-                                paginatedStudents.map((student) => {
-                                    const hasMedical = Boolean(student.medicalInfo || student.conditions || student.allergies || student.injuries);
+                            </TableHeader>
+                            <TableBody>
+                                {paginatedStudents.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={4} className="p-0">
+                                            <EmptyState onAction={clearFilters} />
+                                        </TableCell>
+                                    </TableRow>
+                                ) : (
+                                    paginatedStudents.map((student) => {
+                                        const hasMedical = Boolean(student.medicalInfo || student.conditions || student.allergies || student.injuries);
 
-                                    return (
-                                        <TableRow key={student.id}>
-                                            <TableCell className="font-medium flex items-center gap-3">
-                                                <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary relative">
-                                                    <User className="h-5 w-5" />
-                                                    {hasMedical && (
-                                                        <TooltipProvider>
-                                                            <Tooltip>
-                                                                <TooltipTrigger asChild>
-                                                                    <div className="absolute -top-1 -right-1 bg-white dark:bg-slate-800 rounded-full p-0.5 shadow-sm">
-                                                                        <ShieldAlert className="h-4 w-4 text-red-500 fill-red-100" />
-                                                                    </div>
-                                                                </TooltipTrigger>
-                                                                <TooltipContent className="max-w-[200px] text-xs">
-                                                                    <p className="font-bold">Información Médica:</p>
-                                                                    <p>{student.medicalInfo}</p>
-                                                                    <p>{student.conditions}</p>
-                                                                    <p>{student.allergies}</p>
-                                                                    <p>{student.injuries}</p>
-                                                                </TooltipContent>
-                                                            </Tooltip>
-                                                        </TooltipProvider>
-                                                    )}
-                                                </div>
-                                                <div className="flex flex-col">
-                                                    <span className="font-semibold text-slate-700 dark:text-slate-200">{student.name}</span>
-                                                    <span className="text-xs text-slate-400">{student.email || "Sin email"}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>
-                                                <div className="flex flex-wrap gap-1">
-                                                    {student.plans && student.plans.length > 0 ? (
-                                                        student.plans.map((p, idx) => (
-                                                            <Badge
-                                                                key={idx}
-                                                                variant={p.creditos <= 1 ? "destructive" : "secondary"}
-                                                                className="text-[10px] px-1.5 py-0"
-                                                            >
-                                                                {p.nombreOriginal} &quot;{p.disciplina}&quot;: {p.creditos}
-                                                            </Badge>
-                                                        ))
-                                                    ) : (
-                                                        <span className="text-xs text-slate-400">Sin Plan</span>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell>{student.phone}</TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex justify-end gap-2">
-                                                    <Link href={`/dashboard/students/${student.id}`}>
-                                                        <Button variant="ghost" size="sm" className="hover:text-primary hover:bg-primary/10">
-                                                            <Eye className="h-4 w-4" />
+                                        return (
+                                            <TableRow key={student.id}>
+                                                <TableCell className="font-medium flex items-center gap-3">
+                                                    <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary relative">
+                                                        <User className="h-5 w-5" />
+                                                        {hasMedical && (
+                                                            <TooltipProvider>
+                                                                <Tooltip>
+                                                                    <TooltipTrigger asChild>
+                                                                        <div className="absolute -top-1 -right-1 bg-white dark:bg-slate-800 rounded-full p-0.5 shadow-sm">
+                                                                            <ShieldAlert className="h-4 w-4 text-red-500 fill-red-100" />
+                                                                        </div>
+                                                                    </TooltipTrigger>
+                                                                    <TooltipContent className="max-w-[200px] text-xs">
+                                                                        <p className="font-bold">Información Médica:</p>
+                                                                        <p>{student.medicalInfo}</p>
+                                                                        <p>{student.conditions}</p>
+                                                                        <p>{student.allergies}</p>
+                                                                        <p>{student.injuries}</p>
+                                                                    </TooltipContent>
+                                                                </Tooltip>
+                                                            </TooltipProvider>
+                                                        )}
+                                                    </div>
+                                                    <div className="flex flex-col">
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-200">{student.name}</span>
+                                                        <span className="text-xs text-slate-400">{student.email || "Sin email"}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-wrap gap-1">
+                                                        {student.plans && student.plans.length > 0 ? (
+                                                            student.plans.map((p, idx) => (
+                                                                <Badge
+                                                                    key={idx}
+                                                                    variant={p.creditos <= 1 ? "destructive" : "secondary"}
+                                                                    className="text-[10px] px-1.5 py-0"
+                                                                >
+                                                                    {p.nombreOriginal} &quot;{p.disciplina}&quot;: {p.creditos}
+                                                                </Badge>
+                                                            ))
+                                                        ) : (
+                                                            <span className="text-xs text-slate-400">Sin Plan</span>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell>{student.phone}</TableCell>
+                                                <TableCell className="text-right">
+                                                    <div className="flex justify-end gap-2">
+                                                        <Link href={`/dashboard/students/${student.id}`}>
+                                                            <Button variant="ghost" size="sm" className="hover:text-primary hover:bg-primary/10">
+                                                                <Eye className="h-4 w-4" />
+                                                            </Button>
+                                                        </Link>
+                                                        <Button variant="ghost" size="sm" className="text-slate-400 hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteStudent(student.id)}>
+                                                            <Trash2 className="h-4 w-4" />
                                                         </Button>
-                                                    </Link>
-                                                    <Button variant="ghost" size="sm" className="text-slate-400 hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteStudent(student.id)}>
-                                                        <Trash2 className="h-4 w-4" />
-                                                    </Button>
-                                                </div>
-                                            </TableCell>
-                                        </TableRow>
-                                    )
-                                })
-                            )}
-                        </TableBody>
-                    </Table>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        )
+                                    })
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
 
                     {paginatedStudents.length > 0 && (
                         <div className="p-4 border-t">

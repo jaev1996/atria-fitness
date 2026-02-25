@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { db, Instructor } from "@/lib/storage"
 import { Sidebar } from "@/components/shared/sidebar"
+import { MobileNav } from "@/components/shared/mobile-nav"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -32,15 +33,13 @@ function InstructorsContent() {
         email: string,
         phone: string,
         bio: string,
-        specialties: string[],
-        ratePerClass: number
+        specialties: string[]
     }>({
         name: "",
         email: "",
         phone: "",
         bio: "",
-        specialties: [],
-        ratePerClass: 0
+        specialties: []
     })
 
     const loadInstructors = () => {
@@ -92,8 +91,7 @@ function InstructorsContent() {
                 email: instructor.email || "",
                 phone: instructor.phone || "",
                 bio: instructor.bio || "",
-                specialties: instructor.specialties || [],
-                ratePerClass: instructor.ratePerClass || 0
+                specialties: instructor.specialties || []
             })
         } else {
             setEditingId(null)
@@ -102,8 +100,7 @@ function InstructorsContent() {
                 email: "",
                 phone: "",
                 bio: "",
-                specialties: [],
-                ratePerClass: 0
+                specialties: []
             })
         }
         setIsDialogOpen(true)
@@ -151,22 +148,23 @@ function InstructorsContent() {
     }
 
     return (
-        <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
+        <div className="flex flex-col md:flex-row h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
             <Sidebar />
-            <main className="flex-1 p-8 overflow-y-auto w-full">
-                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+            <MobileNav />
+            <main className="flex-1 h-full overflow-y-auto overflow-x-hidden p-4 md:p-8 min-w-0">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
                     <div>
                         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Gestión de Instructores</h1>
                         <p className="text-slate-500 text-sm">Administra el equipo de profesores y sus especialidades.</p>
                     </div>
-                    <Button onClick={() => handleOpenDialog()} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                    <Button onClick={() => handleOpenDialog()} className="bg-primary hover:bg-primary/90 text-primary-foreground w-full sm:w-auto">
                         <Plus className="mr-2 h-4 w-4" /> Nuevo Instructor
                     </Button>
                 </div>
 
                 {/* FILTERS TOOLBAR */}
                 <div className="bg-white dark:bg-slate-800 p-4 rounded-lg border shadow-sm mb-6 space-y-4">
-                    <div className="flex flex-col md:flex-row gap-4">
+                    <div className="flex flex-col sm:flex-row gap-4">
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                             <Input
@@ -176,9 +174,9 @@ function InstructorsContent() {
                                 onChange={(e) => setSearchTerm(e.target.value)}
                             />
                         </div>
-                        <div className="flex gap-2 overflow-x-auto pb-2 md:pb-0">
+                        <div className="flex flex-wrap sm:flex-nowrap gap-2">
                             <Select value={filters.specialty || "all"} onValueChange={(v) => setFilter('specialty', v)}>
-                                <SelectTrigger className="w-[180px]">
+                                <SelectTrigger className="w-full sm:w-[180px]">
                                     <SelectValue placeholder="Especialidad" />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -190,7 +188,7 @@ function InstructorsContent() {
                             </Select>
 
                             {(filters.specialty || searchTerm) && (
-                                <Button variant="ghost" onClick={clearFilters} className="text-destructive hover:bg-destructive/10">
+                                <Button variant="ghost" onClick={clearFilters} className="text-destructive hover:bg-destructive/10 w-full sm:w-auto">
                                     <Cross className="h-4 w-4 mr-2 rotate-45" /> Limpiar
                                 </Button>
                             )}
@@ -198,68 +196,70 @@ function InstructorsContent() {
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-800 rounded-lg border shadow-sm flex flex-col">
-                    <Table>
-                        <TableHeader>
-                            <TableRow>
-                                <TableHead>Nombre</TableHead>
-                                <TableHead>Especialidades</TableHead>
-                                <TableHead>Contacto</TableHead>
-                                <TableHead className="text-right">Acciones</TableHead>
-                            </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                            {paginatedInstructors.length === 0 ? (
+                <div className="bg-white dark:bg-slate-800 rounded-lg border shadow-sm flex flex-col overflow-hidden">
+                    <div className="overflow-x-auto">
+                        <Table className="min-w-[800px]">
+                            <TableHeader>
                                 <TableRow>
-                                    <TableCell colSpan={4} className="p-0">
-                                        <EmptyState onAction={clearFilters} />
-                                    </TableCell>
+                                    <TableHead>Nombre</TableHead>
+                                    <TableHead>Especialidades</TableHead>
+                                    <TableHead>Contacto</TableHead>
+                                    <TableHead className="text-right">Acciones</TableHead>
                                 </TableRow>
-                            ) : (
-                                paginatedInstructors.map((instructor) => (
-                                    <TableRow key={instructor.id}>
-                                        <TableCell className="font-medium flex items-center gap-2">
-                                            <div className="h-9 w-9 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500">
-                                                <User className="h-4 w-4" />
-                                            </div>
-                                            <div className="flex flex-col">
-                                                <span className="font-semibold text-slate-700 dark:text-slate-200">{instructor.name}</span>
-                                                <span className="text-xs text-slate-400 truncate max-w-[200px]">{instructor.bio || "Sin biografía"}</span>
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="flex flex-wrap gap-1">
-                                                {instructor.specialties.map(s => (
-                                                    <span key={s} className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
-                                                        {s}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        </TableCell>
-                                        <TableCell>
-                                            <div className="text-sm font-medium">{instructor.email}</div>
-                                            <div className="text-xs text-slate-500">{instructor.phone}</div>
-                                        </TableCell>
-                                        <TableCell className="text-right">
-                                            <div className="flex justify-end gap-2">
-                                                <Link href={`/dashboard/instructors/${instructor.id}`}>
-                                                    <Button variant="ghost" size="sm">
-                                                        <Eye className="h-4 w-4 text-slate-500 hover:text-blue-600" />
-                                                    </Button>
-                                                </Link>
-                                                <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(instructor)}>
-                                                    <Edit className="h-4 w-4 text-slate-500 hover:text-primary" />
-                                                </Button>
-                                                <Button variant="ghost" size="sm" onClick={() => handleDelete(instructor.id)}>
-                                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                                </Button>
-                                            </div>
+                            </TableHeader>
+                            <TableBody>
+                                {paginatedInstructors.length === 0 ? (
+                                    <TableRow>
+                                        <TableCell colSpan={4} className="p-0">
+                                            <EmptyState onAction={clearFilters} />
                                         </TableCell>
                                     </TableRow>
-                                ))
-                            )}
-                        </TableBody>
-                    </Table>
+                                ) : (
+                                    paginatedInstructors.map((instructor) => (
+                                        <TableRow key={instructor.id}>
+                                            <TableCell className="font-medium flex items-center gap-2">
+                                                <div className="h-9 w-9 rounded-full bg-slate-100 dark:bg-slate-700 flex items-center justify-center text-slate-500">
+                                                    <User className="h-4 w-4" />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="font-semibold text-slate-700 dark:text-slate-200">{instructor.name}</span>
+                                                    <span className="text-xs text-slate-400 truncate max-w-[200px]">{instructor.bio || "Sin biografía"}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex flex-wrap gap-1">
+                                                    {instructor.specialties.map(s => (
+                                                        <span key={s} className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                                            {s}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="text-sm font-medium">{instructor.email}</div>
+                                                <div className="text-xs text-slate-500">{instructor.phone}</div>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <Link href={`/dashboard/instructors/${instructor.id}`}>
+                                                        <Button variant="ghost" size="sm">
+                                                            <Eye className="h-4 w-4 text-slate-500 hover:text-blue-600" />
+                                                        </Button>
+                                                    </Link>
+                                                    <Button variant="ghost" size="sm" onClick={() => handleOpenDialog(instructor)}>
+                                                        <Edit className="h-4 w-4 text-slate-500 hover:text-primary" />
+                                                    </Button>
+                                                    <Button variant="ghost" size="sm" onClick={() => handleDelete(instructor.id)}>
+                                                        <Trash2 className="h-4 w-4 text-destructive" />
+                                                    </Button>
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                )}
+                            </TableBody>
+                        </Table>
+                    </div>
 
                     {paginatedInstructors.length > 0 && (
                         <div className="p-4 border-t">
@@ -293,15 +293,6 @@ function InstructorsContent() {
                                 <div className="grid gap-2">
                                     <Label>Teléfono</Label>
                                     <Input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="555-0000" />
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label>Tarifa por Clase ($)</Label>
-                                    <Input
-                                        type="number"
-                                        value={formData.ratePerClass || ""}
-                                        onChange={e => setFormData({ ...formData, ratePerClass: parseFloat(e.target.value) || 0 })}
-                                        placeholder="0.00"
-                                    />
                                 </div>
                             </div>
                             <div className="grid gap-2">

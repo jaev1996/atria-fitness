@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect, useMemo, useCallback } from "react"
-import { db, Student, ClassSession, ClassStatus, Instructor, Attendee } from "@/lib/storage"
+import { db, Student, ClassSession, ClassStatus, Instructor, Attendee, StorageData } from "@/lib/storage"
 import { useAuth } from "@/hooks/useAuth"
 import { Sidebar } from "@/components/shared/sidebar"
+import { MobileNav } from "@/components/shared/mobile-nav"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -48,12 +49,13 @@ export default function CalendarPage() {
         date.setHours(0, 0, 0, 0) // Zero out time to avoid UTC day-shifts
         return date
     })
-    const [activeRoom, setActiveRoom] = useState<RoomId>('sala-pole')
+    const [activeRoom, setActiveRoom] = useState<RoomId>('salon-alma')
 
     // Data
     const [classes, setClasses] = useState<ClassSession[]>([])
     const [students, setStudents] = useState<Student[]>([])
     const [instructors, setInstructors] = useState<Instructor[]>([])
+    const [settings, setSettings] = useState<StorageData['settings']>(undefined)
 
     const { role, userId, loading: authLoading } = useAuth(true)
 
@@ -82,7 +84,7 @@ export default function CalendarPage() {
         type: "",
         notes: "",
         status: "scheduled",
-        room: 'sala-pole',
+        room: 'salon-alma',
         maxCapacity: 5,
         attendees: [],
         isPrivate: false
@@ -100,6 +102,7 @@ export default function CalendarPage() {
         setClasses(allClasses)
         setStudents(db.getStudents())
         setInstructors(db.getInstructors())
+        setSettings(db.getSettings())
     }, [role, userId])
 
     useEffect(() => {
@@ -139,7 +142,7 @@ export default function CalendarPage() {
         setStudentToAdd("")
 
         const roomConfig = ROOMS.find(r => r.id === activeRoom)
-        const defaultDiscipline = roomConfig?.discipline || ""
+        const defaultDiscipline = roomConfig?.disciplines[0] || ""
 
         if (existingClass) {
             setFormData({
@@ -200,9 +203,12 @@ export default function CalendarPage() {
             return
         }
 
-        // 2. Check Room Collision (Already covered by UI Slot, but good safety)
-        // checkAvailability doesn't check room collision specifically because we filtered the slot usage. 
-        // But let's trust the slot click logic.
+        // 2. Check Room Collision
+        const isRoomBusy = !db.checkRoomAvailability(formData.room, formData.date, formData.startTime, formData.id)
+        if (isRoomBusy) {
+            toast.error(`⚠️ Colisión de Sala: Esta sala ya tiene una clase programada a esta hora.`, { className: "bg-red-50 text-red-800 border-red-200" })
+            return
+        }
 
         const classData = {
             instructorId: formData.instructorId,
@@ -312,21 +318,20 @@ export default function CalendarPage() {
     if (authLoading) return null
 
     return (
-        <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
+        <div className="flex flex-col md:flex-row h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
             <Sidebar />
-            <main className="flex-1 h-screen overflow-auto p-6">
+            <MobileNav />
+            <main className="flex-1 h-full overflow-y-auto overflow-x-hidden p-4 md:p-6 min-w-0">
                 {/* Header */}
-                <div className="flex justify-between items-center mb-6">
-                    <div className="flex items-center gap-6">
-                        <div className="flex items-center gap-2">
-                            <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">Agenda Multisalas</h1>
-                        </div>
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 w-full sm:w-auto">
+                        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 italic">Agenda Multisalas</h1>
 
-                        <div className="flex items-center gap-4 bg-white dark:bg-slate-800 border rounded-full px-4 py-2 shadow-sm">
+                        <div className="flex items-center justify-between bg-white dark:bg-slate-800 border rounded-full px-4 py-2 shadow-sm w-full sm:w-auto min-w-[280px]">
                             <Button variant="ghost" size="icon" className="hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full h-8 w-8" onClick={() => navigateWeek('prev')}>
                                 <ChevronLeft className="h-5 w-5" />
                             </Button>
-                            <span className="text-lg font-semibold capitalize text-slate-700 dark:text-slate-200 min-w-[200px] text-center select-none">
+                            <span className="text-sm font-semibold capitalize text-slate-700 dark:text-slate-200 text-center select-none">
                                 {currentWeekStart.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
                             </span>
                             <Button variant="ghost" size="icon" className="hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full h-8 w-8" onClick={() => navigateWeek('next')}>
@@ -337,12 +342,16 @@ export default function CalendarPage() {
                 </div>
 
                 {/* Calendar Grid with Tabs */}
-                <div className="min-w-[800px]">
+                <div className="w-full">
                     <Tabs value={activeRoom} onValueChange={(v) => setActiveRoom(v as RoomId)}>
-                        <div className="flex items-center justify-between mb-4">
-                            <TabsList>
+                        <div className="flex items-center mb-4 overflow-x-auto pb-2 scrollbar-hide">
+                            <TabsList className="bg-white dark:bg-slate-800 p-1 flex w-max min-w-full sm:w-auto">
                                 {ROOMS.map(room => (
-                                    <TabsTrigger key={room.id} value={room.id}>
+                                    <TabsTrigger
+                                        key={room.id}
+                                        value={room.id}
+                                        className="px-6 data-[state=active]:bg-primary data-[state=active]:text-white whitespace-nowrap"
+                                    >
                                         {room.name}
                                     </TabsTrigger>
                                 ))}
@@ -352,79 +361,84 @@ export default function CalendarPage() {
                         {ROOMS.map(room => (
                             <TabsContent key={room.id} value={room.id} className="mt-0 border rounded-lg bg-white dark:bg-slate-800 shadow-sm relative">
                                 <div>
-                                    {/* Days Header */}
-                                    <div className="grid grid-cols-7 border-b dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 z-10 shadow-sm rounded-t-lg">
-                                        <div className="p-3 border-r dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-medium text-slate-500 text-center w-20">Hora</div>
-                                        {weekDates.map((date, i) => (
-                                            <div key={i} className="p-3 border-r dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-medium text-slate-700 dark:text-slate-200 text-center min-w-[140px]">
-                                                <div>{DAYS[i]}</div>
-                                                <div className="text-xs text-slate-400 font-normal">
-                                                    {date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    {/* Time Slots */}
-                                    {HOURS.map(hour => (
-                                        <div key={hour} className="grid grid-cols-7 border-b dark:border-slate-700 last:border-0 h-32">
-                                            <div className="p-2 border-r dark:border-slate-700 text-xs text-slate-500 text-center flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/50">
-                                                {hour}
-                                            </div>
-                                            {weekDates.map((date, i) => {
-                                                const dateStr = date.toISOString().split('T')[0]
-                                                const classSession = classes.find(c =>
-                                                    c.date === dateStr &&
-                                                    c.startTime === hour &&
-                                                    c.room === room.id && // Filter by current Room Tab
-                                                    c.status !== 'cancelled'
-                                                )
-
-                                                return (
-                                                    <div
-                                                        key={i}
-                                                        className={cn(
-                                                            "border-r dark:border-slate-700 relative p-1 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/50 group",
-                                                            classSession || role !== 'instructor' ? "cursor-pointer" : "cursor-default"
-                                                        )}
-                                                        onClick={() => {
-                                                            if (classSession || role !== 'instructor') {
-                                                                handleSlotClick(date, hour)
-                                                            }
-                                                        }}
-                                                    >
-                                                        {classSession ? (
-                                                            <div className={cn(
-                                                                "h-full w-full rounded p-2 text-xs border-l-4 flex flex-col gap-1 shadow-sm overflow-hidden",
-                                                                STATUS_COLORS[classSession.status]
-                                                            )}>
-                                                                <div className="font-bold truncate text-sm">{classSession.type}</div>
-                                                                <div className="truncate opacity-75 flex items-center gap-1">
-                                                                    <div className={cn("w-2 h-2 rounded-full", getInstructorColor(classSession.instructorName))}></div>
-                                                                    {classSession.instructorName}
-                                                                </div>
-                                                                <div className="mt-auto flex justify-between items-center opacity-90 font-medium bg-white/50 dark:bg-black/20 p-1 rounded">
-                                                                    <span className="flex items-center gap-1">
-                                                                        <Users className="h-3 w-3" />
-                                                                        {classSession.attendees.length}/{classSession.maxCapacity}
-                                                                    </span>
-                                                                    {classSession.attendees.some(a => a.attendanceType === 'courtesy') && (
-                                                                        <Sparkles className="h-3 w-3 text-yellow-500" />
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                        ) : (
-                                                            role !== 'instructor' && (
-                                                                <div className="hidden group-hover:flex h-full w-full items-center justify-center text-slate-300 dark:text-slate-600">
-                                                                    <Plus className="h-6 w-6" />
-                                                                </div>
-                                                            )
-                                                        )}
+                                    {/* Unified scrollable container */}
+                                    <div className="overflow-x-auto overflow-y-hidden rounded-lg border border-slate-200 dark:border-slate-700">
+                                        <div className="min-w-[1000px] bg-white dark:bg-slate-800">
+                                            {/* Days Header */}
+                                            <div className="grid grid-cols-7 border-b dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 z-10 shadow-sm">
+                                                <div className="p-3 border-r dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-medium text-slate-500 text-center w-24 shrink-0">Hora</div>
+                                                {weekDates.map((date, i) => (
+                                                    <div key={i} className="p-3 border-r dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-medium text-slate-700 dark:text-slate-200 text-center flex-1">
+                                                        <div className="text-sm font-bold">{DAYS[i]}</div>
+                                                        <div className="text-[10px] text-slate-400 font-normal">
+                                                            {date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                                                        </div>
                                                     </div>
-                                                )
-                                            })}
+                                                ))}
+                                            </div>
+
+                                            {/* Time Slots Area */}
+                                            {HOURS.map(hour => (
+                                                <div key={hour} className="grid grid-cols-7 border-b dark:border-slate-700 last:border-0 h-32">
+                                                    <div className="p-2 border-r dark:border-slate-700 text-xs text-slate-500 text-center flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/50 w-24 shrink-0">
+                                                        {hour}
+                                                    </div>
+                                                    {weekDates.map((date, i) => {
+                                                        const dateStr = date.toISOString().split('T')[0]
+                                                        const classSession = classes.find(c =>
+                                                            c.date === dateStr &&
+                                                            c.startTime === hour &&
+                                                            c.room === room.id &&
+                                                            c.status !== 'cancelled'
+                                                        )
+
+                                                        return (
+                                                            <div
+                                                                key={i}
+                                                                className={cn(
+                                                                    "border-r dark:border-slate-700 last:border-r-0 relative p-1 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/50 group flex-1",
+                                                                    classSession || role !== 'instructor' ? "cursor-pointer" : "cursor-default"
+                                                                )}
+                                                                onClick={() => {
+                                                                    if (classSession || role !== 'instructor') {
+                                                                        handleSlotClick(date, hour)
+                                                                    }
+                                                                }}
+                                                            >
+                                                                {classSession ? (
+                                                                    <div className={cn(
+                                                                        "h-full w-full rounded p-2 text-[10px] sm:text-xs border-l-4 flex flex-col gap-1 shadow-sm overflow-hidden",
+                                                                        STATUS_COLORS[classSession.status]
+                                                                    )}>
+                                                                        <div className="font-bold truncate text-[11px] sm:text-sm">{classSession.type}</div>
+                                                                        <div className="truncate opacity-75 flex items-center gap-1">
+                                                                            <div className={cn("w-2 h-2 rounded-full shrink-0", getInstructorColor(classSession.instructorName))}></div>
+                                                                            <span className="truncate">{classSession.instructorName}</span>
+                                                                        </div>
+                                                                        <div className="mt-auto flex justify-between items-center opacity-90 font-medium bg-white/50 dark:bg-black/20 p-0.5 sm:p-1 rounded">
+                                                                            <span className="flex items-center gap-1">
+                                                                                <Users className="h-2 w-2 sm:h-3 sm:w-3" />
+                                                                                {classSession.attendees.length}/{classSession.maxCapacity}
+                                                                            </span>
+                                                                            {classSession.attendees.some(a => a.attendanceType === 'courtesy') && (
+                                                                                <Sparkles className="h-2 w-2 sm:h-3 sm:w-3 text-yellow-500" />
+                                                                            )}
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    role !== 'instructor' && (
+                                                                        <div className="hidden group-hover:flex h-full w-full items-center justify-center text-slate-300 dark:text-slate-600">
+                                                                            <Plus className="h-6 w-6" />
+                                                                        </div>
+                                                                    )
+                                                                )}
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            ))}
                                         </div>
-                                    ))}
+                                    </div>
                                 </div>
                             </TabsContent>
                         ))}
@@ -441,10 +455,9 @@ export default function CalendarPage() {
                             {formData.room && (
                                 <span className={cn(
                                     "text-sm font-normal px-2 py-0.5 rounded",
-                                    activeRoom === 'sala-pole' && "bg-fuchsia-100 text-fuchsia-800",
-                                    activeRoom === 'sala-yoga' && "bg-emerald-100 text-emerald-800",
-                                    activeRoom === 'sala-telas' && "bg-sky-100 text-sky-800",
-                                    activeRoom === 'sala-gluteos' && "bg-rose-100 text-rose-800",
+                                    activeRoom === 'salon-alma' && "bg-fuchsia-100 text-fuchsia-800",
+                                    activeRoom === 'salon-armonia' && "bg-emerald-100 text-emerald-800",
+                                    activeRoom === 'salon-sinergia' && "bg-sky-100 text-sky-800",
                                 )}>
                                     {ROOMS.find(r => r.id === activeRoom)?.name}
                                 </span>
@@ -493,9 +506,22 @@ export default function CalendarPage() {
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
-                                    <Label>Disciplina (Sala)</Label>
-                                    <Input value={formData.type} disabled className="bg-slate-100 text-slate-500 cursor-not-allowed" />
-                                    <p className="text-[10px] text-slate-400">La disciplina está vinculada a la sala.</p>
+                                    <Label>Disciplina</Label>
+                                    <Select
+                                        value={formData.type}
+                                        onValueChange={v => setFormData({ ...formData, type: v })}
+                                        disabled={role === 'instructor'}
+                                    >
+                                        <SelectTrigger>
+                                            <SelectValue placeholder="Seleccionar disciplina..." />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {(settings?.roomDisciplines?.[formData.room] || ROOMS.find(r => r.id === formData.room)?.disciplines || []).map((d: string) => (
+                                                <SelectItem key={d} value={d}>{d}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <p className="text-[10px] text-slate-400">Disciplinas permitidas en esta sala.</p>
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Instructor</Label>

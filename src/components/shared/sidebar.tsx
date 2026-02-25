@@ -1,13 +1,14 @@
 import Link from "next/link"
-import { LayoutDashboard, Users, UserCog, Calendar, Settings, LogOut, Dumbbell, BarChart3 } from "lucide-react"
+import { LayoutDashboard, Users, UserCog, Calendar, Settings, LogOut, Dumbbell, BarChart3, User } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 
-const menuItems = [
+export const menuItems = [
     { icon: LayoutDashboard, label: "Dashboard", href: "/dashboard" },
     { icon: BarChart3, label: "Métricas", href: "/dashboard/stats" },
     { icon: Users, label: "Alumnas", href: "/dashboard/students" },
     { icon: UserCog, label: "Instructores", href: "/dashboard/instructors" },
     { icon: Calendar, label: "Clases", href: "/dashboard/calendar" },
+    { icon: User, label: "Mi Perfil", href: "/dashboard/profile" },
     { icon: Settings, label: "Configuración", href: "/dashboard/settings" },
 ]
 
@@ -16,15 +17,18 @@ export function Sidebar() {
 
     const filteredItems = menuItems.filter(item => {
         if (role === 'instructor') {
-            return item.href === '/dashboard/calendar';
+            return item.href === '/dashboard' || item.href === '/dashboard/calendar' || item.href === '/dashboard/profile';
         }
-        return true;
+        if (role === 'admin') {
+            return true;
+        }
+        return false;
     });
 
     return (
-        <div className="flex h-screen w-64 flex-col border-r bg-white dark:bg-slate-900 dark:border-slate-800">
+        <div className="hidden md:flex h-screen w-64 flex-col border-r bg-white dark:bg-slate-900 dark:border-slate-800 shrink-0">
             <div className="flex h-16 items-center border-b px-6 dark:border-slate-800">
-                <Link href={role === 'instructor' ? "/dashboard/calendar" : "/dashboard"} className="flex items-center gap-2 font-bold text-primary">
+                <Link href="/dashboard" className="flex items-center gap-2 font-bold text-primary">
                     <Dumbbell className="h-6 w-6" />
                     <span className="text-xl">Atria Fitness</span>
                 </Link>

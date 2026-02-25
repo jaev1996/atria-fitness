@@ -219,7 +219,7 @@ export default function InstructorDetailPage() {
                                     <div className="space-y-1">
                                         <Label className="text-slate-500 flex items-center gap-2"><DollarSign className="h-4 w-4" /> Tarifas de Pago</Label>
                                         <div className="font-medium text-xs text-slate-700 bg-slate-50 p-2 rounded border">
-                                            <p className="mb-1">Las tarifas se calculan según la sala y asistencia.</p>
+                                            <p className="mb-1">Las tarifas se calculan según la disciplina y asistencia.</p>
                                             <Link href="/dashboard/settings" className="text-primary hover:underline font-semibold">
                                                 Ver tabla de tarifas →
                                             </Link>

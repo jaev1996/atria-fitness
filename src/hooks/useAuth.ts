@@ -50,7 +50,7 @@ export function useAuth(requireAuth = true) {
         setUserId(uId);
 
         if (userRole === 'instructor') {
-            router.push('/dashboard/calendar');
+            router.push('/dashboard');
         } else {
             router.push('/dashboard');
         }
@@ -63,9 +63,7 @@ export function useAuth(requireAuth = true) {
         setIsAuthenticated(false);
         setRole(null);
         setUserId(null);
-        setTimeout(() => {
-            router.push('/login');
-        }, 500);
+        router.push('/login');
     };
 
     return { isAuthenticated, role, userId, loading, login, logout };

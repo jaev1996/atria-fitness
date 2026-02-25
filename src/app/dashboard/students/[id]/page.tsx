@@ -49,7 +49,7 @@ export default function StudentDetailsPage() {
         credits: 8,
         amount: "",
         method: "Transferencia",
-        discipline: "Pole Exotic" // Standardized
+        discipline: "Pole" // Standardized
     })
 
     // Edit Forms
@@ -156,7 +156,7 @@ export default function StudentDetailsPage() {
                 credits: 8,
                 amount: "",
                 method: "Transferencia",
-                discipline: "Pole Exotic"
+                discipline: "Pole"
             })
             loadStudent()
         }
