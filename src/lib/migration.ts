@@ -35,12 +35,13 @@ export async function migrateLocalToDb(localData: any) {
 
         // 2. Migrate Students
         for (const std of localData.students) {
-            await prisma.student.create({
+            await prisma.user.create({
                 data: {
                     id: std.id,
                     name: std.name,
                     email: std.email,
                     phone: std.phone,
+                    role: 'STUDENT',
                     status: std.status.toUpperCase() as any,
                     medicalInfo: std.medicalInfo,
                     allergies: std.allergies,
@@ -57,7 +58,7 @@ export async function migrateLocalToDb(localData: any) {
                             originalName: p.nombreOriginal,
                         }))
                     },
-                    payments: {
+                    paymentsMade: {
                         create: std.payments.map((py: any) => ({
                             id: py.id,
                             date: new Date(py.date),

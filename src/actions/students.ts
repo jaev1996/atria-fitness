@@ -91,7 +91,7 @@ export async function addStudent(data: {
 }
 
 export async function updateStudent(id: string, data: any) {
-    const updated = await prisma.student.update({
+    const updated = await prisma.user.update({
         where: { id },
         data
     })
@@ -101,7 +101,7 @@ export async function updateStudent(id: string, data: any) {
 }
 
 export async function deleteStudent(id: string) {
-    await prisma.student.delete({ where: { id } })
+    await prisma.user.delete({ where: { id } })
     revalidatePath('/dashboard/students')
 }
 

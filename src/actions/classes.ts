@@ -78,7 +78,7 @@ async function handleClassCompletion(classId: string) {
     if (!classData) return
 
     for (const attendee of classData.attendees) {
-        const student = await prisma.student.findUnique({
+        const student = await prisma.user.findUnique({
             where: { id: attendee.studentId },
             include: { plans: { where: { isActive: true } } }
         })
