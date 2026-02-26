@@ -16,7 +16,10 @@ export function MobileNav() {
 
     const filteredItems = menuItems.filter(item => {
         if (role === 'instructor') {
-            return item.href === '/dashboard' || item.href === '/dashboard/calendar' || item.href === '/dashboard/profile';
+            return item.href === '/dashboard' ||
+                item.href === '/dashboard/calendar' ||
+                item.href === '/dashboard/profile' ||
+                item.href === '/dashboard/students';
         }
         if (role === 'admin') {
             return true;
@@ -57,8 +60,8 @@ export function MobileNav() {
                                     href={item.href}
                                     onClick={() => setOpen(false)}
                                     className={`flex items-center gap-3 rounded-lg px-3 py-3 transition-colors ${pathname === item.href
-                                            ? "bg-primary text-white"
-                                            : "text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary"
+                                        ? "bg-primary text-white"
+                                        : "text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary"
                                         }`}
                                 >
                                     <item.icon className="h-5 w-5" />

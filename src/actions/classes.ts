@@ -2,12 +2,26 @@
 
 import prisma from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
-import { ClassStatus } from "@prisma/client"
+import { ClassSession, Prisma } from "@prisma/client"
 
-export async function getClasses() {
+export async function getClasses(startDateStr?: string, endDateStr?: string, instructorId?: string) {
+    const where: Prisma.ClassSessionWhereInput = {}
+    if (startDateStr && endDateStr) {
+        where.date = {
+            gte: new Date(`${startDateStr}T00:00:00.000Z`),
+            lte: new Date(`${endDateStr}T23:59:59.999Z`)
+        }
+    }
+    if (instructorId) {
+        where.instructorId = instructorId
+    }
+
     return await prisma.classSession.findMany({
+        where,
         include: {
-            attendees: true,
+            attendees: {
+                include: { student: true }
+            },
             instructor: true
         },
         orderBy: { date: 'asc' }
@@ -24,14 +38,39 @@ export async function addClass(data: {
     notes?: string,
     isPrivate?: boolean
 }) {
+    // Use a robust UTC midnight constructor: "YYYY-MM-DD" -> "YYYY-MM-DDT00:00:00.000Z"
+    const classDate = new Date(`${data.date}T00:00:00.000Z`)
+
     const [h, m] = data.startTime.split(':').map(Number)
     const endH = h + 1
     const endTime = `${endH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
 
+    // Collision Check: Instructor
+    const instructorCollision = await prisma.classSession.findFirst({
+        where: {
+            instructorId: data.instructorId,
+            date: classDate,
+            startTime: data.startTime,
+            status: { not: 'CANCELLED' }
+        }
+    })
+    if (instructorCollision) throw new Error("El instructor ya tiene una clase a esta hora.")
+
+    // Collision Check: Room
+    const roomCollision = await prisma.classSession.findFirst({
+        where: {
+            room: data.room,
+            date: classDate,
+            startTime: data.startTime,
+            status: { not: 'CANCELLED' }
+        }
+    })
+    if (roomCollision) throw new Error("La sala ya está ocupada a esta hora.")
+
     const newClass = await prisma.classSession.create({
         data: {
             ...data,
-            date: new Date(data.date),
+            date: classDate,
             endTime,
             status: 'SCHEDULED'
         }
@@ -41,18 +80,50 @@ export async function addClass(data: {
     return newClass
 }
 
-export async function updateClass(id: string, data: any) {
-    // Logic for credit deduction when completed
-    const existing = await prisma.classSession.findUnique({
-        where: { id },
-        include: { attendees: true }
-    })
+export async function updateClass(id: string, data: Partial<ClassSession>) {
+    const classId = id
+    const existing = await prisma.classSession.findUnique({ where: { id } })
+    if (!existing) throw new Error("Clase no encontrada")
+
+    const classDate = data.date ? new Date(`${data.date}T00:00:00.000Z`) : undefined
+
+    // Check for collisions if time/instructor/room changed
+    if (data.startTime || data.instructorId || data.room || classDate) {
+        const checkDate = classDate || existing.date
+        const checkTime = data.startTime || existing.startTime
+        const checkInstructor = data.instructorId || existing.instructorId
+        const checkRoom = data.room || existing.room
+
+        // Instructor collision
+        const instructorCollision = await prisma.classSession.findFirst({
+            where: {
+                id: { not: classId },
+                instructorId: checkInstructor,
+                date: checkDate,
+                startTime: checkTime,
+                status: { not: 'CANCELLED' }
+            }
+        })
+        if (instructorCollision) throw new Error("El instructor ya tiene una clase a esta hora.")
+
+        // Room collision
+        const roomCollision = await prisma.classSession.findFirst({
+            where: {
+                id: { not: classId },
+                room: checkRoom,
+                date: checkDate,
+                startTime: checkTime,
+                status: { not: 'CANCELLED' }
+            }
+        })
+        if (roomCollision) throw new Error("La sala ya está ocupada a esta hora.")
+    }
 
     const updated = await prisma.classSession.update({
         where: { id },
         data: {
             ...data,
-            date: data.date ? new Date(data.date) : undefined
+            date: classDate
         }
     })
 
@@ -137,9 +208,20 @@ export async function enrollStudent(classId: string, studentId: string, type: 'S
             studentId,
             attendanceType: type,
             status: 'BOOKED'
-        }
+        },
+        include: { student: true }
     })
 
     revalidatePath('/dashboard/calendar')
     return enrollment
+}
+
+export async function removeAttendee(classId: string, studentId: string) {
+    await prisma.attendee.deleteMany({
+        where: {
+            classId,
+            studentId
+        }
+    })
+    revalidatePath('/dashboard/calendar')
 }

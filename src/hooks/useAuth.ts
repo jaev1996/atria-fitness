@@ -3,7 +3,7 @@ import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { User } from '@supabase/supabase-js';
 
-export type UserRole = 'admin' | 'instructor';
+export type UserRole = 'admin' | 'instructor' | 'student';
 
 export function useAuth(requireAuth = true) {
     const router = useRouter();
@@ -19,7 +19,8 @@ export function useAuth(requireAuth = true) {
             if (user) {
                 setUser(user);
                 // Get role from app_metadata or user_metadata
-                const userRole = (user.app_metadata?.role || user.user_metadata?.role) as UserRole;
+                const rawRole = user.app_metadata?.role || user.user_metadata?.role;
+                const userRole = (rawRole ? String(rawRole).toLowerCase() : null) as UserRole;
                 setRole(userRole || 'admin');
             } else {
                 setUser(null);
@@ -36,7 +37,8 @@ export function useAuth(requireAuth = true) {
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
             if (session?.user) {
                 setUser(session.user);
-                const userRole = (session.user.app_metadata?.role || session.user.user_metadata?.role) as UserRole;
+                const rawRole = session.user.app_metadata?.role || session.user.user_metadata?.role;
+                const userRole = (rawRole ? String(rawRole).toLowerCase() : null) as UserRole;
                 setRole(userRole || 'admin');
             } else {
                 setUser(null);
@@ -52,8 +54,12 @@ export function useAuth(requireAuth = true) {
     }, [router, requireAuth, supabase.auth]);
 
     const logout = async () => {
-        await supabase.auth.signOut();
-        router.push('/login');
+        try {
+            await supabase.auth.signOut();
+        } catch (error) {
+            console.error("Logout error:", error);
+        }
+        window.location.href = '/login';
     };
 
     return {

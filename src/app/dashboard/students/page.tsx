@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { db, Student } from "@/lib/storage"
+import { useState, useEffect, useTransition } from "react"
+import { getStudents, addStudent, deleteStudent } from "@/actions/students"
+import { User, StudentPlan } from "@prisma/client"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog"
@@ -11,7 +12,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Sidebar } from "@/components/shared/sidebar"
 import { MobileNav } from "@/components/shared/mobile-nav"
-import { PlusCircle, Search, Eye, Trash2, User, Download, Cross, ShieldAlert } from "lucide-react"
+import { useAuth } from "@/hooks/useAuth"
+import { PlusCircle, Search, Eye, Trash2, User as UserIcon, Download, Cross, ShieldAlert } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
@@ -23,8 +25,14 @@ import { DISCIPLINES } from "@/constants/config"
 
 import { Suspense } from "react"
 
+type StudentWithParams = User & {
+    plans: StudentPlan[]
+}
+
 function StudentsContent() {
-    const [students, setStudents] = useState<Student[]>([])
+    const { role } = useAuth()
+    const [students, setStudents] = useState<StudentWithParams[]>([])
+    const [isPending, startTransition] = useTransition()
 
     // Create Student UI State
     const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -42,22 +50,25 @@ function StudentsContent() {
         discipline: "General"
     })
 
-    const loadStudents = () => {
-        setStudents(db.getStudents())
-    }
-
     useEffect(() => {
-        const timer = setTimeout(() => {
-            loadStudents()
-        }, 0)
-        return () => clearTimeout(timer)
+        let isMounted = true
+        const fetchStudents = async () => {
+            try {
+                const data = await getStudents()
+                if (isMounted) setStudents(data as StudentWithParams[])
+            } catch (err) {
+                console.error("Error loading students:", err)
+            }
+        }
+        fetchStudents()
+        return () => { isMounted = false }
     }, [])
 
     // --- customFilter logic for advanced filtering ---
-    const customFilter = (student: Student, filters: Record<string, string>) => {
+    const customFilter = (student: StudentWithParams, filters: Record<string, string>) => {
         // 1. Discipline/Plan Filter
         if (filters.planType && filters.planType !== 'all') {
-            const currentPlan = student.plans?.[0]?.nombreOriginal || "Sin Plan";
+            const currentPlan = student.plans?.[0]?.originalName || "Sin Plan";
             // Simple string includes match for now, or exact match
             if (!currentPlan.includes(filters.planType)) return false;
         }
@@ -84,47 +95,63 @@ function StudentsContent() {
         setFilter,
         clearFilters,
         filters
-    } = useFilter<Student>({
+    } = useFilter<StudentWithParams>({
         data: students,
-        searchKeys: ['name', 'email', 'phone'],
+        searchKeys: ['name' as keyof StudentWithParams, 'email' as keyof StudentWithParams, 'phone' as keyof StudentWithParams],
         initialItemsPerPage: 10,
         customFilter
     });
 
-    const handleCreateStudent = () => {
+    const handleCreateStudent = async () => {
         if (!newStudent.name || !newStudent.phone) {
             toast.error("Por favor completa los campos obligatorios")
             return
         }
 
-        db.addStudent({
-            name: newStudent.name,
-            phone: newStudent.phone,
-            email: newStudent.email,
-            medicalInfo: newStudent.medicalInfo,
-            allergies: newStudent.allergies,
-            injuries: newStudent.injuries,
-            conditions: newStudent.conditions,
-            emergencyContact: newStudent.emergencyContact,
-            sportsInfo: newStudent.sportsInfo,
-            planType: newStudent.planType,
-            discipline: newStudent.discipline
+        startTransition(async () => {
+            try {
+                await addStudent({
+                    name: newStudent.name,
+                    phone: newStudent.phone,
+                    email: newStudent.email,
+                    medicalInfo: newStudent.medicalInfo,
+                    allergies: newStudent.allergies,
+                    injuries: newStudent.injuries,
+                    conditions: newStudent.conditions,
+                    emergencyContact: newStudent.emergencyContact,
+                    sportsInfo: newStudent.sportsInfo,
+                    planType: newStudent.planType,
+                    discipline: newStudent.discipline,
+                })
+                toast.success("Alumna registrada correctamente")
+                setIsDialogOpen(false)
+                setNewStudent({
+                    name: "", phone: "", email: "",
+                    medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "",
+                    sportsInfo: "", planType: "Sin Plan", discipline: "General"
+                })
+                // trigger a refresh of the list
+                const refreshed = await getStudents()
+                setStudents(refreshed as StudentWithParams[])
+            } catch (err: unknown) {
+                const errorMessage = err instanceof Error ? err.message : "Error al registrar alumna"
+                toast.error(errorMessage)
+            }
         })
-        toast.success("Alumna registrada correctamente")
-        setIsDialogOpen(false)
-        setNewStudent({
-            name: "", phone: "", email: "",
-            medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "",
-            sportsInfo: "", planType: "Sin Plan", discipline: "General"
-        })
-        loadStudents()
     }
 
-    const handleDeleteStudent = (id: string) => {
+    const handleDeleteStudent = async (id: string) => {
         if (confirm("¿Estás seguro de eliminar esta alumna?")) {
-            db.deleteStudent(id)
-            toast.success("Alumna eliminada")
-            loadStudents()
+            startTransition(async () => {
+                try {
+                    await deleteStudent(id)
+                    toast.success("Alumna eliminada")
+                    const refreshed = await getStudents()
+                    setStudents(refreshed as StudentWithParams[])
+                } catch {
+                    toast.error("Error al eliminar alumna")
+                }
+            })
         }
     }
 
@@ -140,8 +167,8 @@ function StudentsContent() {
             s.id,
             s.name,
             s.email,
-            s.phone,
-            s.plans?.[0]?.nombreOriginal || "Sin Plan",
+            s.phone || "",
+            s.plans?.[0]?.originalName || "Sin Plan",
             s.medicalInfo || s.conditions || s.allergies || "Ninguna"
         ]);
 
@@ -173,144 +200,148 @@ function StudentsContent() {
                         <Button variant="outline" onClick={handleExportCSV} className="w-full sm:w-auto">
                             <Download className="mr-2 h-4 w-4" /> Exportar CSV
                         </Button>
-                        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                            <DialogTrigger asChild>
-                                <Button className="bg-primary hover:bg-primary/90 text-primary-foreground w-full sm:w-auto">
-                                    <PlusCircle className="mr-2 h-4 w-4" /> Nueva Alumna
-                                </Button>
-                            </DialogTrigger>
-                            <DialogContent className="max-w-2xl h-[90vh] sm:h-[80vh] overflow-y-auto">
-                                <DialogHeader>
-                                    <DialogTitle>Registrar Nueva Alumna</DialogTitle>
-                                </DialogHeader>
-                                <div className="grid gap-4 py-4 grid-cols-1 sm:grid-cols-2">
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="name">Nombre Completo *</Label>
-                                        <Input
-                                            id="name"
-                                            value={newStudent.name}
-                                            onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
-                                            placeholder="Ej. Ana Pérez"
-                                        />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="phone">Teléfono *</Label>
-                                        <Input
-                                            id="phone"
-                                            value={newStudent.phone}
-                                            onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
-                                            placeholder="Ej. 555-1234"
-                                        />
-                                    </div>
-                                    <div className="grid gap-2 col-span-2">
-                                        <Label htmlFor="email">Correo Electrónico (Opcional)</Label>
-                                        <Input
-                                            id="email"
-                                            value={newStudent.email}
-                                            onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
-                                            placeholder="ejemplo@correo.com"
-                                        />
-                                    </div>
-                                    <div className="grid gap-2 col-span-2 border-t pt-2 mt-2">
-                                        <Label className="font-semibold text-primary">Información Médica</Label>
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="allergies">Alergias</Label>
-                                        <Input
-                                            id="allergies"
-                                            value={newStudent.allergies}
-                                            onChange={(e) => setNewStudent({ ...newStudent, allergies: e.target.value })}
-                                            placeholder="Medicamentos, polen..."
-                                        />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="conditions">Condiciones</Label>
-                                        <Input
-                                            id="conditions"
-                                            value={newStudent.conditions}
-                                            onChange={(e) => setNewStudent({ ...newStudent, conditions: e.target.value })}
-                                            placeholder="Asma, cardíaco..."
-                                        />
-                                    </div>
-                                    <div className="grid gap-2 col-span-2">
-                                        <Label htmlFor="injuries">Lesiones Previas</Label>
-                                        <Input
-                                            id="injuries"
-                                            value={newStudent.injuries}
-                                            onChange={(e) => setNewStudent({ ...newStudent, injuries: e.target.value })}
-                                            placeholder="Rodilla, hombro, espalda..."
-                                        />
-                                    </div>
-                                    <div className="grid gap-2 col-span-2">
-                                        <Label htmlFor="medicalInfo">Observaciones Médicas Adicionales</Label>
-                                        <Textarea
-                                            id="medicalInfo"
-                                            value={newStudent.medicalInfo}
-                                            onChange={(e) => setNewStudent({ ...newStudent, medicalInfo: e.target.value })}
-                                            className="h-16"
-                                        />
-                                    </div>
-                                    <div className="grid gap-2 col-span-2">
-                                        <Label htmlFor="emergencyContact">Contacto de Emergencia (Nombre y Tel)</Label>
-                                        <Input
-                                            id="emergencyContact"
-                                            value={newStudent.emergencyContact}
-                                            onChange={(e) => setNewStudent({ ...newStudent, emergencyContact: e.target.value })}
-                                            placeholder="Ej. Mamá - 555-9999"
-                                        />
-                                    </div>
-                                    <div className="grid gap-2 col-span-2 border-t pt-2 mt-2">
-                                        <Label className="font-semibold text-primary">Información Deportiva & Plan</Label>
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="sportsInfo">Antecedentes Deportivos</Label>
-                                        <Input
-                                            id="sportsInfo"
-                                            value={newStudent.sportsInfo}
-                                            onChange={(e) => setNewStudent({ ...newStudent, sportsInfo: e.target.value })}
-                                            placeholder="Yoga, Danza..."
-                                        />
-                                    </div>
-                                    <div className="grid gap-2">
-                                        <Label htmlFor="plan">Plan Inicial</Label>
-                                        <Select value={newStudent.planType} onValueChange={(v) => setNewStudent({ ...newStudent, planType: v })}>
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="Sin Plan">Sin Plan</SelectItem>
-                                                <SelectItem value="Clase Suelta">Clase Suelta (1 Clase)</SelectItem>
-                                                <SelectItem value="Pack 4 Clases">Pack 4 Clases</SelectItem>
-                                                <SelectItem value="Pack 8 Clases">Pack 8 Clases</SelectItem>
-                                                <SelectItem value="Pack 12 Clases">Pack 12 Clases</SelectItem>
-                                                <SelectItem value="Pack 24 Clases">Pack 24 Clases</SelectItem>
-                                                <SelectItem value="Ilimitado">Ilimitado</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    {newStudent.planType !== "Sin Plan" && (
+                        {role !== 'instructor' && (
+                            <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                                <DialogTrigger asChild>
+                                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground w-full sm:w-auto">
+                                        <PlusCircle className="mr-2 h-4 w-4" /> Nueva Alumna
+                                    </Button>
+                                </DialogTrigger>
+                                <DialogContent className="max-w-2xl h-[90vh] sm:h-[80vh] overflow-y-auto">
+                                    <DialogHeader>
+                                        <DialogTitle>Registrar Nueva Alumna</DialogTitle>
+                                    </DialogHeader>
+                                    <div className="grid gap-4 py-4 grid-cols-1 sm:grid-cols-2">
                                         <div className="grid gap-2">
-                                            <Label htmlFor="discipline">Disciplina del Plan</Label>
-                                            <Select value={newStudent.discipline} onValueChange={(v) => setNewStudent({ ...newStudent, discipline: v })}>
+                                            <Label htmlFor="name">Nombre Completo *</Label>
+                                            <Input
+                                                id="name"
+                                                value={newStudent.name}
+                                                onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
+                                                placeholder="Ej. Ana Pérez"
+                                            />
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="phone">Teléfono *</Label>
+                                            <Input
+                                                id="phone"
+                                                value={newStudent.phone}
+                                                onChange={(e) => setNewStudent({ ...newStudent, phone: e.target.value })}
+                                                placeholder="Ej. 555-1234"
+                                            />
+                                        </div>
+                                        <div className="grid gap-2 col-span-2">
+                                            <Label htmlFor="email">Correo Electrónico (Opcional)</Label>
+                                            <Input
+                                                id="email"
+                                                value={newStudent.email}
+                                                onChange={(e) => setNewStudent({ ...newStudent, email: e.target.value })}
+                                                placeholder="ejemplo@correo.com"
+                                            />
+                                        </div>
+                                        <div className="grid gap-2 col-span-2 border-t pt-2 mt-2">
+                                            <Label className="font-semibold text-primary">Información Médica</Label>
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="allergies">Alergias</Label>
+                                            <Input
+                                                id="allergies"
+                                                value={newStudent.allergies}
+                                                onChange={(e) => setNewStudent({ ...newStudent, allergies: e.target.value })}
+                                                placeholder="Medicamentos, polen..."
+                                            />
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="conditions">Condiciones</Label>
+                                            <Input
+                                                id="conditions"
+                                                value={newStudent.conditions}
+                                                onChange={(e) => setNewStudent({ ...newStudent, conditions: e.target.value })}
+                                                placeholder="Asma, cardíaco..."
+                                            />
+                                        </div>
+                                        <div className="grid gap-2 col-span-2">
+                                            <Label htmlFor="injuries">Lesiones Previas</Label>
+                                            <Input
+                                                id="injuries"
+                                                value={newStudent.injuries}
+                                                onChange={(e) => setNewStudent({ ...newStudent, injuries: e.target.value })}
+                                                placeholder="Rodilla, hombro, espalda..."
+                                            />
+                                        </div>
+                                        <div className="grid gap-2 col-span-2">
+                                            <Label htmlFor="medicalInfo">Observaciones Médicas Adicionales</Label>
+                                            <Textarea
+                                                id="medicalInfo"
+                                                value={newStudent.medicalInfo}
+                                                onChange={(e) => setNewStudent({ ...newStudent, medicalInfo: e.target.value })}
+                                                className="h-16"
+                                            />
+                                        </div>
+                                        <div className="grid gap-2 col-span-2">
+                                            <Label htmlFor="emergencyContact">Contacto de Emergencia (Nombre y Tel)</Label>
+                                            <Input
+                                                id="emergencyContact"
+                                                value={newStudent.emergencyContact}
+                                                onChange={(e) => setNewStudent({ ...newStudent, emergencyContact: e.target.value })}
+                                                placeholder="Ej. Mamá - 555-9999"
+                                            />
+                                        </div>
+                                        <div className="grid gap-2 col-span-2 border-t pt-2 mt-2">
+                                            <Label className="font-semibold text-primary">Información Deportiva & Plan</Label>
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="sportsInfo">Antecedentes Deportivos</Label>
+                                            <Input
+                                                id="sportsInfo"
+                                                value={newStudent.sportsInfo}
+                                                onChange={(e) => setNewStudent({ ...newStudent, sportsInfo: e.target.value })}
+                                                placeholder="Yoga, Danza..."
+                                            />
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="plan">Plan Inicial</Label>
+                                            <Select value={newStudent.planType} onValueChange={(v) => setNewStudent({ ...newStudent, planType: v })}>
                                                 <SelectTrigger>
                                                     <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                    <SelectItem value="General">General (Todas)</SelectItem>
-                                                    {DISCIPLINES.map(d => (
-                                                        <SelectItem key={d} value={d}>{d}</SelectItem>
-                                                    ))}
+                                                    <SelectItem value="Sin Plan">Sin Plan</SelectItem>
+                                                    <SelectItem value="Clase Suelta">Clase Suelta (1 Clase)</SelectItem>
+                                                    <SelectItem value="Pack 4 Clases">Pack 4 Clases</SelectItem>
+                                                    <SelectItem value="Pack 8 Clases">Pack 8 Clases</SelectItem>
+                                                    <SelectItem value="Pack 12 Clases">Pack 12 Clases</SelectItem>
+                                                    <SelectItem value="Pack 24 Clases">Pack 24 Clases</SelectItem>
+                                                    <SelectItem value="Ilimitado">Ilimitado</SelectItem>
                                                 </SelectContent>
                                             </Select>
                                         </div>
-                                    )}
-                                </div>
-                                <DialogFooter>
-                                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-                                    <Button onClick={handleCreateStudent} className="bg-primary text-primary-foreground hover:bg-primary/90">Guardar</Button>
-                                </DialogFooter>
-                            </DialogContent>
-                        </Dialog>
+                                        {newStudent.planType !== "Sin Plan" && (
+                                            <div className="grid gap-2">
+                                                <Label htmlFor="discipline">Disciplina del Plan</Label>
+                                                <Select value={newStudent.discipline} onValueChange={(v) => setNewStudent({ ...newStudent, discipline: v })}>
+                                                    <SelectTrigger>
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="General">General (Todas)</SelectItem>
+                                                        {DISCIPLINES.map(d => (
+                                                            <SelectItem key={d} value={d}>{d}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </div>
+                                        )}
+                                    </div>
+                                    <DialogFooter>
+                                        <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
+                                        <Button onClick={handleCreateStudent} disabled={isPending} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                                            {isPending ? "Guardando..." : "Guardar"}
+                                        </Button>
+                                    </DialogFooter>
+                                </DialogContent>
+                            </Dialog>
+                        )}
                     </div>
                 </div>
 
@@ -389,7 +420,7 @@ function StudentsContent() {
                                             <TableRow key={student.id}>
                                                 <TableCell className="font-medium flex items-center gap-3">
                                                     <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary relative">
-                                                        <User className="h-5 w-5" />
+                                                        <UserIcon className="h-5 w-5" />
                                                         {hasMedical && (
                                                             <TooltipProvider>
                                                                 <Tooltip>
@@ -420,10 +451,10 @@ function StudentsContent() {
                                                             student.plans.map((p, idx) => (
                                                                 <Badge
                                                                     key={idx}
-                                                                    variant={p.creditos <= 1 ? "destructive" : "secondary"}
+                                                                    variant={p.credits <= 1 ? "destructive" : "secondary"}
                                                                     className="text-[10px] px-1.5 py-0"
                                                                 >
-                                                                    {p.nombreOriginal} &quot;{p.disciplina}&quot;: {p.creditos}
+                                                                    {p.originalName} &quot;{p.discipline}&quot;: {p.credits}
                                                                 </Badge>
                                                             ))
                                                         ) : (
@@ -439,9 +470,11 @@ function StudentsContent() {
                                                                 <Eye className="h-4 w-4" />
                                                             </Button>
                                                         </Link>
-                                                        <Button variant="ghost" size="sm" className="text-slate-400 hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteStudent(student.id)}>
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
+                                                        {role !== 'instructor' && (
+                                                            <Button variant="ghost" size="sm" className="text-slate-400 hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteStudent(student.id)}>
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        )}
                                                     </div>
                                                 </TableCell>
                                             </TableRow>

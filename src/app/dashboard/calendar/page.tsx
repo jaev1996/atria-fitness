@@ -1,7 +1,11 @@
 "use client"
 
-import { useState, useEffect, useMemo, useCallback } from "react"
-import { db, Student, ClassSession, ClassStatus, Instructor, Attendee, StorageData } from "@/lib/storage"
+import { useState, useEffect, useMemo, useCallback, useTransition } from "react"
+import { getClasses, addClass, updateClass, deleteClass, enrollStudent, removeAttendee } from "@/actions/classes"
+import { getStudentsSummary } from "@/actions/students"
+import { getInstructors } from "@/actions/instructors"
+import { getSettings } from "@/actions/settings"
+import { ClassStatus, User, ClassSession as PrismaClassSession, Attendee as PrismaAttendee, Settings } from "@prisma/client"
 import { useAuth } from "@/hooks/useAuth"
 import { Sidebar } from "@/components/shared/sidebar"
 import { MobileNav } from "@/components/shared/mobile-nav"
@@ -16,29 +20,39 @@ import { ChevronLeft, ChevronRight, Plus, Users, School, Trash, Sparkles, AlertT
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { ROOMS, RoomId } from "@/constants/config"
+import { StudentSearchSelect } from "@/components/dashboard/StudentSearchSelect"
 
 const HOURS = Array.from({ length: 13 }, (_, i) => {
     const hour = i + 8 // 8 AM to 8 PM
     return `${hour.toString().padStart(2, '0')}:00`
 })
 
+const toYYYYMMDD = (date: Date) => {
+    return `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
+}
+
 const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 
-const STATUS_COLORS = {
-    scheduled: "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300",
-    confirmed: "bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300",
-    rescheduled: "bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-300",
-    cancelled: "bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300",
-    completed: "bg-slate-100 border-slate-300 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400",
+const STATUS_LABELS: Record<ClassStatus, string> = {
+    SCHEDULED: "Programada",
+    CONFIRMED: "Confirmada",
+    RESCHEDULED: "Reagendada",
+    CANCELLED: "Cancelada",
+    COMPLETED: "Completada/Realizada",
 }
 
-const STATUS_LABELS: Record<ClassStatus, string> = {
-    scheduled: "Programada",
-    confirmed: "Confirmada",
-    rescheduled: "Reagendada",
-    cancelled: "Cancelada",
-    completed: "Completada/Realizada",
+const STATUS_COLORS: Record<string, string> = {
+    SCHEDULED: "bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-300",
+    CONFIRMED: "bg-green-50 border-green-200 text-green-700 dark:bg-green-900/20 dark:border-green-800 dark:text-green-300",
+    RESCHEDULED: "bg-orange-50 border-orange-200 text-orange-700 dark:bg-orange-900/20 dark:border-orange-800 dark:text-orange-300",
+    CANCELLED: "bg-red-50 border-red-200 text-red-700 dark:bg-red-900/20 dark:border-red-800 dark:text-red-300",
+    COMPLETED: "bg-slate-100 border-slate-300 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400",
 }
+
+type ClassWithDetails = PrismaClassSession & {
+    instructor: User;
+    attendees: (PrismaAttendee & { student: User })[];
+};
 
 export default function CalendarPage() {
     const [currentWeekStart, setCurrentWeekStart] = useState(() => {
@@ -51,11 +65,18 @@ export default function CalendarPage() {
     })
     const [activeRoom, setActiveRoom] = useState<RoomId>('salon-alma')
 
+    type StudentSummary = {
+        id: string;
+        name: string;
+        email?: string;
+    };
+
     // Data
-    const [classes, setClasses] = useState<ClassSession[]>([])
-    const [students, setStudents] = useState<Student[]>([])
-    const [instructors, setInstructors] = useState<Instructor[]>([])
-    const [settings, setSettings] = useState<StorageData['settings']>(undefined)
+    const [classes, setClasses] = useState<ClassWithDetails[]>([])
+    const [students, setStudents] = useState<StudentSummary[]>([])
+    const [instructors, setInstructors] = useState<User[]>([])
+    const [settings, setSettings] = useState<Settings | null>(null)
+    const [isPending, startTransition] = useTransition()
 
     const { role, userId, loading: authLoading } = useAuth(true)
 
@@ -75,7 +96,7 @@ export default function CalendarPage() {
         room: RoomId;
         maxCapacity: number;
         id?: string;
-        attendees: Attendee[];
+        attendees: (PrismaAttendee & { student: User })[];
         isPrivate?: boolean;
     }>({
         instructorId: "",
@@ -83,34 +104,83 @@ export default function CalendarPage() {
         startTime: "09:00",
         type: "",
         notes: "",
-        status: "scheduled",
+        status: "SCHEDULED",
         room: 'salon-alma',
         maxCapacity: 5,
         attendees: [],
         isPrivate: false
     })
 
-    // Load Initial Data
-    const loadData = useCallback(() => {
-        let allClasses = db.getClasses()
+    // Load Metadata (Role-aware and non-blocking)
+    const loadMetadata = useCallback(async () => {
+        if (!role) return;
 
-        // Filter classes for instructor role
-        if (role === 'instructor' && userId) {
-            allClasses = allClasses.filter(c => c.instructorId === userId)
+        try {
+            console.log(`Loading metadata for role: ${role}...`)
+
+            // Parallel fetch of generic settings
+            const settingsPromise = getSettings()
+
+            // Role-based fetching: Instructors don't need student search or other instructors list for scheduling
+            if (role === 'admin') {
+                const [allStudents, allInstructors, allSettings] = await Promise.all([
+                    getStudentsSummary(),
+                    getInstructors(),
+                    settingsPromise
+                ])
+                setStudents(allStudents)
+                setInstructors(allInstructors as User[])
+                setSettings(allSettings)
+            } else if (role === 'instructor') {
+                const allSettings = await settingsPromise
+                setSettings(allSettings)
+                // We might only want the current instructor in the list for local consistency
+            }
+        } catch (error) {
+            console.error("Error loading metadata:", error)
         }
+    }, [role])
 
-        setClasses(allClasses)
-        setStudents(db.getStudents())
-        setInstructors(db.getInstructors())
-        setSettings(db.getSettings())
-    }, [role, userId])
+    // Refresh only classes based on current visible week
+    const refreshClasses = useCallback(async () => {
+        if (!role) return;
+
+        try {
+            const weekEnd = new Date(currentWeekStart)
+            weekEnd.setDate(weekEnd.getDate() + 6)
+
+            const startStr = toYYYYMMDD(currentWeekStart)
+            const endStr = toYYYYMMDD(weekEnd)
+
+            // Server-side filtering by instructor if applicable
+            const fetchedClasses = await getClasses(
+                startStr,
+                endStr,
+                role === 'instructor' ? userId || undefined : undefined
+            )
+
+            setClasses(fetchedClasses as ClassWithDetails[])
+        } catch (error) {
+            console.error("Error refreshing classes:", error)
+            toast.error("Error al actualizar calendario")
+        }
+    }, [role, userId, currentWeekStart])
 
     useEffect(() => {
         const timer = setTimeout(() => {
-            loadData()
+            loadMetadata()
         }, 0)
         return () => clearTimeout(timer)
-    }, [loadData])
+    }, [loadMetadata])
+
+    useEffect(() => {
+        if (!authLoading) {
+            const timer = setTimeout(() => {
+                refreshClasses()
+            }, 0)
+            return () => clearTimeout(timer)
+        }
+    }, [refreshClasses, authLoading])
 
     // Navigation
     const navigateWeek = (direction: 'prev' | 'next') => {
@@ -130,13 +200,15 @@ export default function CalendarPage() {
     // Handlers
     const handleSlotClick = (date: Date, time: string) => {
         // Robust way to get YYYY-MM-DD in local time
-        const dateStr = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
-        const existingClass = classes.find(c =>
-            c.date === dateStr &&
-            c.startTime === time &&
-            c.room === activeRoom &&
-            c.status !== 'cancelled'
-        )
+        const dateStr = toYYYYMMDD(date)
+        const existingClass = classes.find(c => {
+            const cDate = new Date(c.date)
+            const cDateStr = `${cDate.getUTCFullYear()}-${(cDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${cDate.getUTCDate().toString().padStart(2, '0')}`
+            return cDateStr === dateStr &&
+                c.startTime === time &&
+                c.room === activeRoom &&
+                c.status !== 'CANCELLED'
+        })
 
         setIsCourtesy(false)
         setStudentToAdd("")
@@ -145,15 +217,17 @@ export default function CalendarPage() {
         const defaultDiscipline = roomConfig?.disciplines[0] || ""
 
         if (existingClass) {
+            const eDate = new Date(existingClass.date)
+            const dStr = `${eDate.getUTCFullYear()}-${(eDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${eDate.getUTCDate().toString().padStart(2, '0')}`
             setFormData({
                 id: existingClass.id,
                 instructorId: existingClass.instructorId,
-                date: existingClass.date,
+                date: dStr,
                 startTime: existingClass.startTime,
                 type: existingClass.type,
                 notes: existingClass.notes || "",
                 status: existingClass.status as ClassStatus,
-                room: existingClass.room,
+                room: existingClass.room as RoomId,
                 maxCapacity: existingClass.maxCapacity,
                 attendees: existingClass.attendees,
                 isPrivate: existingClass.isPrivate ?? false
@@ -167,7 +241,7 @@ export default function CalendarPage() {
                 startTime: time,
                 type: defaultDiscipline,
                 notes: "",
-                status: "scheduled",
+                status: "SCHEDULED",
                 room: activeRoom,
                 maxCapacity: 5,
                 attendees: [],
@@ -177,14 +251,21 @@ export default function CalendarPage() {
         }
     }
 
+    // Client-side collision helper (for feedback only, real check is on server)
     const checkInstructorCollision = (instructorId: string, date: string, time: string, excludeClassId?: string) => {
-        // Use the db helper I should have added, but for now I'll do it locally or call db.checkAvailability if I can rely on it updating state immediately. 
-        // Since state 'classes' might be stale if I didn't reload, but usually it is fine.
-        // Actually, let's use the local state 'classes' for instant feedback before saving.
-
-        // Actually, let's use db.checkAvailability
-        return !db.checkAvailability(instructorId, date, time, 'instructor', excludeClassId)
+        const dStr = toYYYYMMDD(new Date(date))
+        return classes.some(c => {
+            const cd = new Date(c.date)
+            const cdStr = `${cd.getUTCFullYear()}-${(cd.getUTCMonth() + 1).toString().padStart(2, '0')}-${cd.getUTCDate().toString().padStart(2, '0')}`
+            return c.instructorId === instructorId &&
+                cdStr === dStr &&
+                c.startTime === time &&
+                c.id !== excludeClassId &&
+                c.status !== 'CANCELLED'
+        })
     }
+
+
 
     const handleSaveClass = () => {
         if (!formData.instructorId || !formData.type) {
@@ -195,106 +276,106 @@ export default function CalendarPage() {
         const instructor = instructors.find(i => i.id === formData.instructorId)
         if (!instructor) return
 
-        // 1. Check Instructor Collision
-        // Logic: Is this instructor busy at this Date & Time in ANY room?
-        const isBusy = !db.checkAvailability(formData.instructorId, formData.date, formData.startTime, 'instructor', formData.id)
-        if (isBusy) {
-            toast.error(`⚠️ Colisión: ${instructor.name} ya tiene clase a esta hora en otra sala.`, { className: "bg-red-50 text-red-800 border-red-200" })
-            return
-        }
-
-        // 2. Check Room Collision
-        const isRoomBusy = !db.checkRoomAvailability(formData.room, formData.date, formData.startTime, formData.id)
-        if (isRoomBusy) {
-            toast.error(`⚠️ Colisión de Sala: Esta sala ya tiene una clase programada a esta hora.`, { className: "bg-red-50 text-red-800 border-red-200" })
-            return
-        }
-
-        const classData = {
-            instructorId: formData.instructorId,
-            instructorName: instructor.name,
-            date: formData.date,
-            startTime: formData.startTime,
-            type: formData.type,
-            notes: formData.notes,
-            status: formData.status,
-            room: formData.room,
-            maxCapacity: formData.maxCapacity,
-            attendees: formData.attendees,
-            isPrivate: formData.isPrivate
-        }
-
-        const [h, m] = formData.startTime.split(':').map(Number)
-        const endTime = `${(h + 1).toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
-
-        if (formData.id) {
-            db.updateClass({
-                ...classData,
-                id: formData.id,
-                endTime,
-                attendees: formData.attendees,
-                isPrivate: formData.isPrivate
-            })
-            toast.success("Clase actualizada")
-        } else {
-            db.addClass(classData)
-            toast.success("Clase creada")
-        }
-
-        loadData()
-        setIsDialogOpen(false)
+        startTransition(async () => {
+            try {
+                if (formData.id) {
+                    await updateClass(formData.id, {
+                        instructorId: formData.instructorId,
+                        // @ts-expect-error - passing string to server action that expects partial prisma type (handled by server action logic)
+                        date: formData.date,
+                        startTime: formData.startTime,
+                        type: formData.type,
+                        notes: formData.notes,
+                        status: formData.status,
+                        room: formData.room,
+                        maxCapacity: formData.maxCapacity,
+                        isPrivate: formData.isPrivate
+                    })
+                    toast.success("Clase actualizada")
+                } else {
+                    await addClass({
+                        instructorId: formData.instructorId,
+                        date: formData.date,
+                        startTime: formData.startTime,
+                        type: formData.type,
+                        room: formData.room,
+                        maxCapacity: formData.maxCapacity,
+                        notes: formData.notes,
+                        isPrivate: formData.isPrivate
+                    })
+                    toast.success("Clase creada")
+                }
+                await refreshClasses()
+                setIsDialogOpen(false)
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : "Error al guardar clase"
+                toast.error(message)
+            }
+        })
     }
 
     const handleDeleteClass = () => {
         if (formData.id && confirm("¿Eliminar esta clase y sus inscripciones?")) {
-            db.deleteClass(formData.id)
-            loadData()
-            setIsDialogOpen(false)
-            toast.success("Clase eliminada")
+            startTransition(async () => {
+                try {
+                    await deleteClass(formData.id!)
+                    await refreshClasses()
+                    setIsDialogOpen(false)
+                    toast.success("Clase eliminada")
+                } catch {
+                    toast.error("Error al eliminar clase")
+                }
+            })
         }
     }
 
     // Enrollment Logic in Dialog
-    const handleAddStudent = () => {
+    const handleAddStudent = (studentIdOverride?: string) => {
+        const targetStudentId = studentIdOverride || studentToAdd
         if (!formData.id) {
             toast.error("Debes guardar la clase antes de inscribir alumnas")
             return
         }
-        if (!studentToAdd) return
+        if (!targetStudentId) return
 
-        try {
-            const student = students.find(s => s.id === studentToAdd)
-            if (student) {
-                const type = isCourtesy ? 'courtesy' : 'standard'
-                db.enrollStudent(formData.id, student.id, student.name, type)
+        startTransition(async () => {
+            try {
+                await enrollStudent(formData.id!, targetStudentId, isCourtesy ? 'COURTESY' : 'STANDARD')
                 toast.success(isCourtesy ? "Alumna inscrita (Cortesía)" : "Alumna inscrita")
+                await refreshClasses()
+                setStudentToAdd("")
+                setIsCourtesy(false)
 
-                const updatedClasses = db.getClasses()
+                // Update local form state too
+                const updatedClasses = await getClasses()
                 const updatedClass = updatedClasses.find(c => c.id === formData.id)
                 if (updatedClass) {
                     setFormData(prev => ({ ...prev, attendees: updatedClass.attendees }))
-                    setClasses(updatedClasses)
                 }
-                setStudentToAdd("")
-                setIsCourtesy(false)
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : "Error al inscribir alumna"
+                toast.error(message)
             }
-        } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : "Ocurrió un error inesperado"
-            toast.error(message) // This catches "Colisión: La alumna ya tiene una clase..."
-        }
+        })
     }
 
     const handleRemoveStudent = (studentId: string) => {
         if (!formData.id) return
-        db.removeAttendee(formData.id, studentId)
-        toast.success("Alumna removida")
+        startTransition(async () => {
+            try {
+                await removeAttendee(formData.id!, studentId)
+                toast.success("Alumna removida")
+                await refreshClasses()
 
-        const updatedClasses = db.getClasses()
-        const updatedClass = updatedClasses.find(c => c.id === formData.id)
-        if (updatedClass) {
-            setFormData(prev => ({ ...prev, attendees: updatedClass.attendees }))
-            setClasses(updatedClasses)
-        }
+                const updatedClasses = await getClasses()
+                const updatedClass = updatedClasses.find(c => c.id === formData.id)
+                if (updatedClass) {
+                    setFormData(prev => ({ ...prev, attendees: updatedClass.attendees }))
+                }
+            } catch {
+                toast.error("Error al remover alumna")
+            }
+        })
     }
 
     // Filter Instructors based on selected discipline (which is locked by room)
@@ -384,23 +465,25 @@ export default function CalendarPage() {
                                                         {hour}
                                                     </div>
                                                     {weekDates.map((date, i) => {
-                                                        const dateStr = date.toISOString().split('T')[0]
-                                                        const classSession = classes.find(c =>
-                                                            c.date === dateStr &&
-                                                            c.startTime === hour &&
-                                                            c.room === room.id &&
-                                                            c.status !== 'cancelled'
-                                                        )
+                                                        const dateStr = toYYYYMMDD(date)
+                                                        const classSession = classes.find(c => {
+                                                            const cDate = new Date(c.date)
+                                                            const cDateStr = `${cDate.getUTCFullYear()}-${(cDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${cDate.getUTCDate().toString().padStart(2, '0')}`
+                                                            return cDateStr === dateStr &&
+                                                                c.startTime === hour &&
+                                                                c.room === room.id &&
+                                                                c.status !== 'CANCELLED'
+                                                        })
 
                                                         return (
                                                             <div
                                                                 key={i}
                                                                 className={cn(
                                                                     "border-r dark:border-slate-700 last:border-r-0 relative p-1 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/50 group flex-1",
-                                                                    classSession || role !== 'instructor' ? "cursor-pointer" : "cursor-default"
+                                                                    classSession || (role !== 'instructor' && role !== null) ? "cursor-pointer" : "cursor-default"
                                                                 )}
                                                                 onClick={() => {
-                                                                    if (classSession || role !== 'instructor') {
+                                                                    if (classSession || (role !== 'instructor' && role !== null)) {
                                                                         handleSlotClick(date, hour)
                                                                     }
                                                                 }}
@@ -412,21 +495,21 @@ export default function CalendarPage() {
                                                                     )}>
                                                                         <div className="font-bold truncate text-[11px] sm:text-sm">{classSession.type}</div>
                                                                         <div className="truncate opacity-75 flex items-center gap-1">
-                                                                            <div className={cn("w-2 h-2 rounded-full shrink-0", getInstructorColor(classSession.instructorName))}></div>
-                                                                            <span className="truncate">{classSession.instructorName}</span>
+                                                                            <div className={cn("w-2 h-2 rounded-full shrink-0", getInstructorColor(classSession.instructor.name))}></div>
+                                                                            <span className="truncate">{classSession.instructor.name}</span>
                                                                         </div>
                                                                         <div className="mt-auto flex justify-between items-center opacity-90 font-medium bg-white/50 dark:bg-black/20 p-0.5 sm:p-1 rounded">
                                                                             <span className="flex items-center gap-1">
                                                                                 <Users className="h-2 w-2 sm:h-3 sm:w-3" />
                                                                                 {classSession.attendees.length}/{classSession.maxCapacity}
                                                                             </span>
-                                                                            {classSession.attendees.some(a => a.attendanceType === 'courtesy') && (
+                                                                            {classSession.attendees.some(a => a.attendanceType === 'COURTESY') && (
                                                                                 <Sparkles className="h-2 w-2 sm:h-3 sm:w-3 text-yellow-500" />
                                                                             )}
                                                                         </div>
                                                                     </div>
                                                                 ) : (
-                                                                    role !== 'instructor' && (
+                                                                    role !== 'instructor' && role !== null && (
                                                                         <div className="hidden group-hover:flex h-full w-full items-center justify-center text-slate-300 dark:text-slate-600">
                                                                             <Plus className="h-6 w-6" />
                                                                         </div>
@@ -516,7 +599,9 @@ export default function CalendarPage() {
                                             <SelectValue placeholder="Seleccionar disciplina..." />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {(settings?.roomDisciplines?.[formData.room] || ROOMS.find(r => r.id === formData.room)?.disciplines || []).map((d: string) => (
+                                            {(settings?.roomDisciplines as Record<string, string[]>)?.[formData.room]?.map((d: string) => (
+                                                <SelectItem key={d} value={d}>{d}</SelectItem>
+                                            )) || ROOMS.find(r => r.id === formData.room)?.disciplines.map((d: string) => (
                                                 <SelectItem key={d} value={d}>{d}</SelectItem>
                                             ))}
                                         </SelectContent>
@@ -584,10 +669,10 @@ export default function CalendarPage() {
                                     <Sparkles className="h-4 w-4" /> ¿Es Clase Privada?
                                 </Label>
                             </div>
-                            {role !== 'instructor' && (
+                            {(role === 'admin' || role === null) && (
                                 <div className="grid gap-2">
-                                    <Button onClick={handleSaveClass} className="w-full bg-primary text-primary-foreground">
-                                        {formData.id ? "Guardar Cambios de Clase" : "Crear Clase"}
+                                    <Button onClick={handleSaveClass} className="w-full bg-primary text-primary-foreground" disabled={isPending}>
+                                        {isPending ? "Procesando..." : (formData.id ? "Guardar Cambios de Clase" : "Crear Clase")}
                                     </Button>
                                 </div>
                             )}
@@ -604,28 +689,28 @@ export default function CalendarPage() {
                                 </h3>
 
                                 {role !== 'instructor' && (
-                                    <div className="flex gap-2 items-end">
-                                        <div className="flex-1 space-y-2">
-                                            <Select value={studentToAdd} onValueChange={setStudentToAdd}>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Seleccionar alumna para inscribir..." />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {students.map(s => (
-                                                        <SelectItem key={s.id} value={s.id}>{s.name} ({s.plans?.[0]?.nombreOriginal || "Sin Plan"})</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                    <div className="flex flex-col gap-4">
+                                        <div className="space-y-2">
+                                            <Label>Buscar Alumna</Label>
+                                            <div className="flex gap-2">
+                                                <div className="flex-1">
+                                                    <StudentSearchSelect
+                                                        students={students}
+                                                        onSelect={(id) => setStudentToAdd(id)}
+                                                        placeholder="Seleccionar alumna para inscribir..."
+                                                    />
+                                                </div>
+                                                <div className="flex items-center space-x-2 shrink-0">
+                                                    <Checkbox id="courtesy" checked={isCourtesy} onCheckedChange={(c) => setIsCourtesy(c as boolean)} />
+                                                    <label htmlFor="courtesy" className="text-sm font-medium leading-none whitespace-nowrap">
+                                                        Cortesía
+                                                    </label>
+                                                </div>
+                                                <Button onClick={() => handleAddStudent()} disabled={!studentToAdd || isPending} size="sm">
+                                                    <Plus className="h-4 w-4" /> Inscribir
+                                                </Button>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center space-x-2 pb-2">
-                                            <Checkbox id="courtesy" checked={isCourtesy} onCheckedChange={(c) => setIsCourtesy(c as boolean)} />
-                                            <label htmlFor="courtesy" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
-                                                Cortesía
-                                            </label>
-                                        </div>
-                                        <Button onClick={handleAddStudent} disabled={!studentToAdd} size="sm">
-                                            <Plus className="h-4 w-4" /> Inscribir
-                                        </Button>
                                     </div>
                                 )}
 
@@ -636,8 +721,8 @@ export default function CalendarPage() {
                                         formData.attendees.map(attendee => (
                                             <div key={attendee.studentId} className="flex items-center justify-between p-3 bg-white dark:bg-slate-800">
                                                 <div>
-                                                    <span className="text-sm font-medium block">{attendee.studentName}</span>
-                                                    {attendee.attendanceType === 'courtesy' && (
+                                                    <span className="text-sm font-medium block">{attendee.student.name}</span>
+                                                    {attendee.attendanceType === 'COURTESY' && (
                                                         <span className="text-xs text-yellow-600 flex items-center gap-1">
                                                             <Sparkles className="h-3 w-3" /> Cortesía
                                                         </span>
@@ -648,8 +733,8 @@ export default function CalendarPage() {
                                                         </span>
                                                     )}
                                                 </div>
-                                                {role !== 'instructor' && (
-                                                    <Button variant="ghost" size="sm" className="h-6 w-6 text-red-500 hover:bg-red-50" onClick={() => handleRemoveStudent(attendee.studentId)}>
+                                                {(role !== 'instructor' && role !== null) && (
+                                                    <Button variant="ghost" size="sm" className="h-6 w-6 text-red-500 hover:bg-red-50" onClick={() => handleRemoveStudent(attendee.studentId)} disabled={isPending}>
                                                         <Trash className="h-3 w-3" />
                                                     </Button>
                                                 )}
