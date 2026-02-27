@@ -32,6 +32,7 @@ type StudentWithParams = User & {
 function StudentsContent() {
     const { role } = useAuth()
     const [students, setStudents] = useState<StudentWithParams[]>([])
+    const [isLoading, setIsLoading] = useState(true)
     const [isPending, startTransition] = useTransition()
 
     // Create Student UI State
@@ -58,6 +59,8 @@ function StudentsContent() {
                 if (isMounted) setStudents(data as StudentWithParams[])
             } catch (err) {
                 console.error("Error loading students:", err)
+            } finally {
+                if (isMounted) setIsLoading(false)
             }
         }
         fetchStudents()
@@ -406,7 +409,29 @@ function StudentsContent() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {paginatedStudents.length === 0 ? (
+                                {isLoading ? (
+                                    Array.from({ length: 6 }).map((_, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell>
+                                                <div className="flex items-center gap-3">
+                                                    <div className="h-9 w-9 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse shrink-0" />
+                                                    <div className="space-y-1.5">
+                                                        <div className="h-3.5 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                                                        <div className="h-3 w-24 bg-slate-100 dark:bg-slate-600 rounded animate-pulse" />
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell><div className="h-5 w-28 bg-slate-200 dark:bg-slate-700 rounded-full animate-pulse" /></TableCell>
+                                            <TableCell><div className="h-3.5 w-20 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" /></TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <div className="h-8 w-8 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
+                                                    <div className="h-8 w-8 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : paginatedStudents.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={4} className="p-0">
                                             <EmptyState onAction={clearFilters} />

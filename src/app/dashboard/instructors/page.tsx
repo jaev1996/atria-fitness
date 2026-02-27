@@ -19,11 +19,12 @@ import { useFilter } from "@/hooks/useFilter"
 import { PaginationControl } from "@/components/shared/pagination-control"
 import { EmptyState } from "@/components/shared/empty-state"
 import { getInstructors, addInstructor, updateInstructor, deleteInstructor } from "@/actions/instructors"
+import { User as PrismaUser } from "@prisma/client"
 
 import { Suspense } from "react"
 
 function InstructorsContent() {
-    const [instructors, setInstructors] = useState<any[]>([])
+    const [instructors, setInstructors] = useState<PrismaUser[]>([])
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
@@ -46,8 +47,8 @@ function InstructorsContent() {
     const loadInstructors = async () => {
         try {
             const data = await getInstructors()
-            setInstructors(data)
-        } catch (error) {
+            setInstructors(data as PrismaUser[])
+        } catch {
             toast.error("Error al cargar instructores")
         } finally {
             setIsLoading(false)
@@ -59,7 +60,7 @@ function InstructorsContent() {
     }, [])
 
     // --- customFilter logic for advanced filtering ---
-    const customFilter = (item: any, filters: Record<string, string>) => {
+    const customFilter = (item: PrismaUser, filters: Record<string, string>) => {
         // 1. Specialty Filter
         if (filters.specialty && filters.specialty !== 'all') {
             if (!item.specialties?.includes(filters.specialty)) return false;
@@ -81,14 +82,14 @@ function InstructorsContent() {
         setFilter,
         clearFilters,
         filters
-    } = useFilter<any>({
+    } = useFilter<PrismaUser>({
         data: instructors,
-        searchKeys: ['name', 'email', 'bio'],
+        searchKeys: ['name', 'email', 'bio'] as (keyof PrismaUser)[],
         initialItemsPerPage: 10,
         customFilter
     });
 
-    const handleOpenDialog = (instructor?: any) => {
+    const handleOpenDialog = (instructor?: PrismaUser) => {
         if (instructor) {
             setEditingId(instructor.id)
             setFormData({
@@ -150,7 +151,7 @@ function InstructorsContent() {
                 await deleteInstructor(id)
                 toast.success("Instructor eliminado")
                 loadInstructors()
-            } catch (error) {
+            } catch {
                 toast.error("Error al eliminar")
             }
         }
@@ -228,7 +229,40 @@ function InstructorsContent() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {paginatedInstructors.length === 0 ? (
+                                {isLoading ? (
+                                    Array.from({ length: 5 }).map((_, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-9 w-9 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse shrink-0" />
+                                                    <div className="space-y-1.5">
+                                                        <div className="h-3.5 w-28 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                                                        <div className="h-3 w-36 bg-slate-100 dark:bg-slate-600 rounded animate-pulse" />
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex gap-1.5">
+                                                    <div className="h-5 w-16 bg-slate-200 dark:bg-slate-700 rounded-full animate-pulse" />
+                                                    <div className="h-5 w-14 bg-slate-100 dark:bg-slate-600 rounded-full animate-pulse" />
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="space-y-1.5">
+                                                    <div className="h-3.5 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                                                    <div className="h-3 w-20 bg-slate-100 dark:bg-slate-600 rounded animate-pulse" />
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <div className="h-8 w-8 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
+                                                    <div className="h-8 w-8 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
+                                                    <div className="h-8 w-8 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : paginatedInstructors.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={4} className="p-0">
                                             <EmptyState onAction={clearFilters} />
