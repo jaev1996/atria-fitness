@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Edit, Search, User, Eye, Trash2, Cross, Loader2 } from "lucide-react"
+import { Plus, Edit, Search, User, Eye, Trash2, Cross, Loader2, ShieldAlert } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { DISCIPLINES } from "@/constants/config"
@@ -20,10 +20,12 @@ import { PaginationControl } from "@/components/shared/pagination-control"
 import { EmptyState } from "@/components/shared/empty-state"
 import { getInstructors, addInstructor, updateInstructor, deleteInstructor } from "@/actions/instructors"
 import { User as PrismaUser } from "@prisma/client"
+import { useAuth } from "@/hooks/useAuth"
 
 import { Suspense } from "react"
 
 function InstructorsContent() {
+    const { role, loading: authLoading } = useAuth(true)
     const [instructors, setInstructors] = useState<PrismaUser[]>([])
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [isSaving, setIsSaving] = useState(false)
@@ -56,8 +58,10 @@ function InstructorsContent() {
     }
 
     useEffect(() => {
-        loadInstructors()
-    }, [])
+        if (role === 'admin') {
+            loadInstructors()
+        }
+    }, [role])
 
     // --- customFilter logic for advanced filtering ---
     const customFilter = (item: PrismaUser, filters: Record<string, string>) => {
@@ -88,6 +92,30 @@ function InstructorsContent() {
         initialItemsPerPage: 10,
         customFilter
     });
+
+    if (authLoading) return (
+        <div className="flex h-screen flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 gap-4 text-slate-500">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <p className="italic text-sm animate-pulse">Verificando permisos...</p>
+        </div>
+    );
+
+    if (role !== 'admin') {
+        return (
+            <div className="flex h-screen items-center justify-center p-4 bg-slate-50 dark:bg-slate-900">
+                <div className="text-center bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg border max-w-md w-full">
+                    <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
+                        <ShieldAlert className="h-10 w-10 text-destructive" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-2 italic">Acceso Denegado</h2>
+                    <p className="text-slate-500 dark:text-slate-400 mb-8">Lo sentimos, esta sección es exclusiva para la administración de Atria Fitness.</p>
+                    <Link href="/dashboard">
+                        <Button className="w-full h-12 text-lg">Volver al Dashboard</Button>
+                    </Link>
+                </div>
+            </div>
+        )
+    }
 
     const handleOpenDialog = (instructor?: PrismaUser) => {
         if (instructor) {
@@ -414,7 +442,29 @@ function InstructorsContent() {
 
 export default function InstructorsPage() {
     return (
-        <Suspense fallback={<div className="flex h-screen items-center justify-center">Cargando...</div>}>
+        <Suspense fallback={
+            <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
+                <Sidebar />
+                <div className="flex-1 flex items-center justify-center p-8">
+                    <div className="flex flex-col items-center gap-6 bg-white dark:bg-slate-800/80 backdrop-blur px-14 py-12 rounded-3xl shadow-lg border border-slate-100 dark:border-slate-700">
+                        <div className="relative flex items-center justify-center">
+                            <div className="absolute h-24 w-24 rounded-full bg-primary/10 animate-pulse" />
+                            <div className="absolute h-20 w-20 rounded-full ring-2 ring-primary/30" />
+                            <Loader2 className="h-10 w-10 text-primary animate-spin relative z-10" />
+                        </div>
+                        <div className="flex flex-col items-center gap-1.5">
+                            <p className="text-base font-semibold text-slate-800 dark:text-slate-100 tracking-tight">Cargando instructores</p>
+                            <p className="text-sm text-slate-400 dark:text-slate-500">Atria Fitness</p>
+                        </div>
+                        <div className="flex gap-1.5">
+                            {[0, 150, 300].map((delay) => (
+                                <span key={delay} className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: `${delay}ms` }} />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }>
             <InstructorsContent />
         </Suspense>
     )

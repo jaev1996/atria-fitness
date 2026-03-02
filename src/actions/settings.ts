@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { DISCIPLINES, ROOMS, Tier } from "@/constants/config"
 import { Prisma } from "@prisma/client"
+import { ensureRole } from "@/lib/auth-utils"
 
 // ── Default rates used when no settings exist in DB ───────────────────────────
 const DEFAULT_DISCIPLINE_RATES: Record<string, { privateRate: number; rates: Tier[] }> = Object.fromEntries(
@@ -34,6 +35,8 @@ const toJson = (v: unknown) => v as Prisma.InputJsonValue
  * payment calculations always have real rates to work with.
  */
 export async function getSettings() {
+    // Both admin and instructor need settings for calendar disciplines
+    await ensureRole(['admin', 'instructor'])
     const existing = await prisma.settings.findUnique({ where: { id: 'singleton' } })
 
     if (existing) {
@@ -64,6 +67,7 @@ export async function getSettings() {
 }
 
 export async function updateDisciplineRate(discipline: string, data: { privateRate: number; rates: Tier[] }) {
+    await ensureRole(['admin'])
     const current = await prisma.settings.findUnique({ where: { id: 'singleton' } })
     const disciplineRates = { ...(current?.disciplineRates as Record<string, unknown> ?? {}), [discipline]: data }
 
@@ -82,6 +86,7 @@ export async function updateDisciplineRate(discipline: string, data: { privateRa
 }
 
 export async function updateRoomDisciplines(roomId: string, disciplines: string[]) {
+    await ensureRole(['admin'])
     const current = await prisma.settings.findUnique({ where: { id: 'singleton' } })
     const roomDisciplines = { ...(current?.roomDisciplines as Record<string, unknown> ?? {}), [roomId]: disciplines }
 

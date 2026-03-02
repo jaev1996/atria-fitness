@@ -18,8 +18,8 @@ export function MobileNav() {
         if (role === 'instructor') {
             return item.href === '/dashboard' ||
                 item.href === '/dashboard/calendar' ||
-                item.href === '/dashboard/profile' ||
-                item.href === '/dashboard/students';
+                item.href === '/dashboard/students' ||
+                item.href === '/dashboard/profile';
         }
         if (role === 'admin') {
             return true;

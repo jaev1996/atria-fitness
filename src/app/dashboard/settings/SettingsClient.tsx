@@ -10,9 +10,11 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Plus, Trash2, Save, RotateCcw, Layout } from "lucide-react"
-import { toast } from "sonner"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Plus, Trash2, Save, RotateCcw, Layout, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react"
+import { toast } from "sonner"
+import { syncAllUserMetadata } from "@/actions/sync-metadata"
+import { cn } from "@/lib/utils"
 
 // ── Default values ────────────────────────────────────────────────────────────
 const DEFAULT_RATES: { privateRate: number; rates: Tier[] } = {
@@ -139,6 +141,24 @@ export function SettingsClient({ initialSettings }: SettingsClientProps) {
             toast.success("Distribución de disciplinas guardada")
         } catch {
             toast.error("Error al guardar distribución")
+        } finally {
+            setSaving(null)
+        }
+    }
+
+    const handleSyncMetadata = async () => {
+        setSaving("sync-all")
+        const id = toast.loading("Sincronizando todos los usuarios...")
+        try {
+            const results = await syncAllUserMetadata()
+            if (results.errors > 0) {
+                toast.warning(`Sincronización parcial: ${results.updated} actualizados, ${results.errors} errores.`, { id })
+            } else {
+                toast.success(`Sincronización exitosa: ${results.updated} usuarios actualizados.`, { id })
+            }
+        } catch (e) {
+            console.error(e)
+            toast.error("Error crítico durante la sincronización", { id })
         } finally {
             setSaving(null)
         }
@@ -279,6 +299,45 @@ export function SettingsClient({ initialSettings }: SettingsClientProps) {
                         </div>
                     </CardContent>
                 </Card>
+
+                {/* Advanced Security & Speed Tools (Only visible in Development) */}
+                {process.env.NODE_ENV === 'development' && (
+                    <Card className="mt-8 border-none shadow-sm bg-slate-100 dark:bg-slate-800/40">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                                <ShieldCheck className="h-5 w-5 text-emerald-600" /> Herramientas de Rendimiento y Seguridad
+                            </CardTitle>
+                            <CardDescription>
+                                Optimiza el sistema sincronizando los datos críticos entre la base de datos y el motor de autenticación.
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="flex flex-col md:flex-row items-center justify-between p-6 bg-white dark:bg-slate-900 rounded-xl border border-dotted border-slate-300 dark:border-slate-700 gap-6">
+                                <div className="space-y-2">
+                                    <h3 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
+                                        Sincronización Global de Metadatos
+                                    </h3>
+                                    <p className="text-sm text-slate-500 max-w-xl">
+                                        Esta herramienta actualizará los roles y nombres de **todos** los usuarios en Supabase Auth
+                                        usando la información actual de la base de datos. Resuelve problemas de permisos y elimina
+                                        la necesidad de consultas lentas a la tabla de usuarios durante la navegación.
+                                    </p>
+                                    <div className="flex items-center gap-2 text-[10px] text-amber-600 font-bold uppercase tracking-wider bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded w-fit">
+                                        <AlertTriangle className="h-3 w-3" /> Usar solo cuando sea necesario (Ej: tras una migración)
+                                    </div>
+                                </div>
+                                <Button
+                                    onClick={handleSyncMetadata}
+                                    disabled={saving === "sync-all"}
+                                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 h-12 px-6 shrink-0 shadow-lg shadow-emerald-600/20"
+                                >
+                                    <RefreshCw className={cn("h-5 w-5", saving === "sync-all" && "animate-spin")} />
+                                    {saving === "sync-all" ? "Sincronizando..." : "Sincronizar Todos los Usuarios"}
+                                </Button>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
             </main>
         </div>
     )

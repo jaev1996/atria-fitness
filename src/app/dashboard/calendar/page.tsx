@@ -21,7 +21,7 @@ export default async function CalendarPage() {
     if (!user) redirect("/login")
 
     const rawRole = user.app_metadata?.role || user.user_metadata?.role
-    const role = (rawRole ? String(rawRole).toLowerCase() : "admin") as "admin" | "instructor" | "student"
+    const role = (rawRole ? String(rawRole).toLowerCase() : "student") as "admin" | "instructor" | "student"
     const userId = user.id
 
     // ── Current week range ────────────────────────────────────────────────

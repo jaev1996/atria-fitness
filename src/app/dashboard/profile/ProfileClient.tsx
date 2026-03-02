@@ -31,7 +31,7 @@ interface ClassWithAttendees {
     instructorId: string
     paymentId?: string | null
     maxCapacity: number
-    attendees: { id: string }[]
+    attendees: { id: string; status?: string; attendanceType?: string; student: { id: string; name: string; email: string } }[]
     isPrivate?: boolean
 }
 
@@ -97,6 +97,117 @@ export function ProfileClient({
     // Payment detail dialog
     const [selectedPayment, setSelectedPayment] = useState<InstructorPayment | null>(null)
     const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+
+    // ── Print voucher in new window ──────────────────────────────────────────
+    const printVoucher = (payment: InstructorPayment) => {
+        const rows = payment.classes.map((cls, idx) => {
+            const classAmount = calculateClassPayment(cls, disciplineRates)
+            const bookedAttendees = cls.attendees.filter(a => !a.status || a.status === 'BOOKED')
+            const studentList = bookedAttendees.map(a => a.student?.name ?? '').filter(Boolean).join(', ') || '—'
+            return `
+                <tr style="border-bottom:1px solid #e2e8f0">
+                    <td style="padding:8px 6px;font-size:13px;color:#374151">${idx + 1}</td>
+                    <td style="padding:8px 6px;font-size:13px">${format(parseISO(toDateStr(cls.date)), 'dd/MM/yyyy')} ${cls.startTime}</td>
+                    <td style="padding:8px 6px;font-size:13px">${cls.type}${cls.isPrivate ? ' ★' : ''}</td>
+                    <td style="padding:8px 6px;font-size:13px;text-align:center">${bookedAttendees.length}</td>
+                    <td style="padding:8px 6px;font-size:13px;font-weight:600;color:#16a34a;text-align:right">${formatCurrency(classAmount)}</td>
+                </tr>
+                <tr style="background:#f8fafc">
+                    <td></td>
+                    <td colspan="4" style="padding:4px 6px 10px 6px;font-size:11px;color:#64748b;font-style:italic">Alumnas: ${studentList}</td>
+                </tr>`
+        }).join('')
+
+        const totalStudents = payment.classes.reduce((acc, c) =>
+            acc + c.attendees.filter(a => !a.status || a.status === 'BOOKED').length, 0)
+
+        const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <title>Comprobante de Liquidación — ${profile.name}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1e293b; background: #fff; padding: 40px; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 3px solid #7c3aed; }
+        .brand { font-size: 26px; font-weight: 800; color: #7c3aed; letter-spacing: -0.5px; }
+        .brand-sub { font-size: 13px; color: #64748b; margin-top: 2px; }
+        .voucher-title { font-size: 14px; color: #64748b; text-align: right; }
+        .voucher-title strong { display: block; font-size: 18px; color: #1e293b; }
+        .meta-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 28px; }
+        .meta-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }
+        .meta-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; font-weight: 600; margin-bottom: 4px; }
+        .meta-value { font-size: 15px; font-weight: 600; color: #1e293b; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+        thead tr { background: #7c3aed; }
+        thead th { padding: 10px 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #fff; text-align: left; font-weight: 600; }
+        thead th:last-child { text-align: right; }
+        thead th:nth-child(4) { text-align: center; }
+        .total-row { background: #f0fdf4; border-top: 2px solid #16a34a; }
+        .total-row td { padding: 12px 6px; font-weight: 700; font-size: 15px; color: #16a34a; }
+        .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; }
+        @media print { body { padding: 20px; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <div class="brand">Atria Fitness</div>
+            <div class="brand-sub">Sistema de Gestión</div>
+        </div>
+        <div class="voucher-title">
+            <strong>Comprobante de Liquidación</strong>
+            Emitido: ${format(new Date(), 'dd/MM/yyyy HH:mm')}
+        </div>
+    </div>
+    <div class="meta-grid">
+        <div class="meta-box">
+            <div class="meta-label">Instructor</div>
+            <div class="meta-value">${profile.name}</div>
+        </div>
+        <div class="meta-box">
+            <div class="meta-label">Fecha de Pago</div>
+            <div class="meta-value">${format(parseISO(toDateStr(payment.date)), 'dd/MM/yyyy')}</div>
+        </div>
+        <div class="meta-box">
+            <div class="meta-label">Período</div>
+            <div class="meta-value">${format(parseISO(toDateStr(payment.startDate)), 'dd/MM/yyyy')} — ${format(parseISO(toDateStr(payment.endDate)), 'dd/MM/yyyy')}</div>
+        </div>
+        <div class="meta-box">
+            <div class="meta-label">Resumen</div>
+            <div class="meta-value">${payment.classes.length} clases · ${totalStudents} alumnas</div>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width:32px">#</th>
+                <th>Fecha y Hora</th>
+                <th>Disciplina</th>
+                <th style="text-align:center">Asist.</th>
+                <th style="text-align:right">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${rows}
+            <tr class="total-row">
+                <td colspan="4" style="text-align:right;padding-right:12px">TOTAL LIQUIDADO</td>
+                <td style="text-align:right;padding:12px 6px">${formatCurrency(payment.amount)}</td>
+            </tr>
+        </tbody>
+    </table>
+    ${payment.notes ? `<p style="font-size:12px;color:#64748b;font-style:italic;margin-bottom:24px;padding-left:8px;border-left:3px solid #7c3aed">${payment.notes}</p>` : ''}
+    <div class="footer">
+        <span>Atria Fitness — Sistema de Gestión</span>
+        <span>Página 1 de 1</span>
+    </div>
+    <script>window.onload = () => { window.print(); }<\/script>
+</body>
+</html>`
+
+        const win = window.open('', '_blank', 'width=900,height=700')
+        if (win) { win.document.write(html); win.document.close() }
+    }
 
     // Date range filter for payroll
     const [dateRange, setDateRange] = useState({
@@ -595,7 +706,7 @@ export function ProfileClient({
 
                                 <div className="flex justify-end gap-2">
                                     <Button variant="outline" onClick={() => setIsDetailsOpen(false)}>Cerrar</Button>
-                                    <Button className="bg-primary" onClick={() => window.print()}>Imprimir Comprobante</Button>
+                                    <Button className="bg-primary" onClick={() => selectedPayment && printVoucher(selectedPayment)}>Imprimir Comprobante</Button>
                                 </div>
                             </div>
                         )}

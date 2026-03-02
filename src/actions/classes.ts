@@ -3,6 +3,7 @@
 import prisma from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { ClassSession, Prisma } from "@prisma/client"
+import { ensureRole } from "@/lib/auth-utils"
 
 export async function getClasses(startDateStr?: string, endDateStr?: string, instructorId?: string) {
     const where: Prisma.ClassSessionWhereInput = {}
@@ -38,6 +39,7 @@ export async function addClass(data: {
     notes?: string,
     isPrivate?: boolean
 }) {
+    await ensureRole(['admin'])
     // Use a robust UTC midnight constructor: "YYYY-MM-DD" -> "YYYY-MM-DDT00:00:00.000Z"
     const classDate = new Date(`${data.date}T00:00:00.000Z`)
 
@@ -81,9 +83,15 @@ export async function addClass(data: {
 }
 
 export async function updateClass(id: string, data: Partial<ClassSession>) {
+    const user = await ensureRole(['admin'])
     const classId = id
     const existing = await prisma.classSession.findUnique({ where: { id } })
     if (!existing) throw new Error("Clase no encontrada")
+
+    const role = (user.app_metadata?.role || user.user_metadata?.role || 'student').toLowerCase()
+    if (role === 'instructor' && existing.instructorId !== user.id) {
+        throw new Error("No tienes permiso para modificar clases de otros instructores")
+    }
 
     const classDate = data.date ? new Date(`${data.date}T00:00:00.000Z`) : undefined
 
@@ -142,11 +150,12 @@ async function handleClassCompletion(classId: string) {
         include: {
             attendees: {
                 where: { status: 'BOOKED', creditDeducted: false, attendanceType: 'STANDARD' }
-            }
+            },
+            instructor: true
         }
     })
 
-    if (!classData) return
+    if (!classData || !classData.instructor) return
 
     for (const attendee of classData.attendees) {
         const student = await prisma.user.findUnique({
@@ -178,7 +187,7 @@ async function handleClassCompletion(classId: string) {
                     data: {
                         studentId: student.id,
                         activity: `Clase Completada: ${classData.type}`,
-                        notes: `Instructor: (ID: ${classData.instructorId})`,
+                        notes: `Instructor: ${classData.instructor.name}`,
                         cost: 0
                     }
                 })
@@ -188,18 +197,26 @@ async function handleClassCompletion(classId: string) {
 }
 
 export async function deleteClass(id: string) {
+    await ensureRole(['admin'])
     await prisma.classSession.delete({ where: { id } })
     revalidatePath('/dashboard/calendar')
 }
 
 // Enrollment
 export async function enrollStudent(classId: string, studentId: string, type: 'STANDARD' | 'COURTESY' = 'STANDARD') {
+    const user = await ensureRole(['admin'])
+
     const classData = await prisma.classSession.findUnique({
         where: { id: classId },
         include: { attendees: { where: { status: 'BOOKED' } } }
     })
 
     if (!classData) throw new Error("Clase no encontrada")
+
+    const role = (user.app_metadata?.role || user.user_metadata?.role || 'student').toLowerCase()
+    if (role === 'instructor' && classData.instructorId !== user.id) {
+        throw new Error("No puedes inscribir alumnos en clases de otros instructores")
+    }
     if (classData.attendees.length >= classData.maxCapacity) throw new Error("Clase llena")
 
     const enrollment = await prisma.attendee.create({
@@ -217,6 +234,18 @@ export async function enrollStudent(classId: string, studentId: string, type: 'S
 }
 
 export async function removeAttendee(classId: string, studentId: string) {
+    const user = await ensureRole(['admin'])
+
+    const classData = await prisma.classSession.findUnique({
+        where: { id: classId }
+    })
+
+    if (!classData) throw new Error("Clase no encontrada")
+
+    const role = (user.app_metadata?.role || user.user_metadata?.role || 'student').toLowerCase()
+    if (role === 'instructor' && classData.instructorId !== user.id) {
+        throw new Error("No puedes remover alumnos de clases de otros instructores")
+    }
     await prisma.attendee.deleteMany({
         where: {
             classId,

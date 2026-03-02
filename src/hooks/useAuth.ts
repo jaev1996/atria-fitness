@@ -1,73 +1,69 @@
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
-import { User } from '@supabase/supabase-js';
+"use client"
 
-export type UserRole = 'admin' | 'instructor' | 'student';
+import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
+import { User } from "@supabase/supabase-js"
+import { getRoleFromPrisma } from "@/actions/get-role"
 
-export function useAuth(requireAuth = true) {
-    const router = useRouter();
-    const [user, setUser] = useState<User | null>(null);
-    const [role, setRole] = useState<UserRole | null>(null);
-    const [loading, setLoading] = useState(true);
-    const supabase = createClient();
+export type UserRole = "admin" | "instructor" | "student"
+
+export function useAuth(requireAuth: boolean = false) {
+    const router = useRouter()
+    const [user, setUser] = useState<User | null>(null)
+    const [role, setRole] = useState<UserRole | null>(null)
+    const [userId, setUserId] = useState<string | null>(null)
+    const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        const getUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
+        let isMounted = true
+        async function fetchUser() {
+            const supabase = createClient()
+            const { data: { user }, error } = await supabase.auth.getUser()
 
-            if (user) {
-                setUser(user);
-                // Get role from app_metadata or user_metadata
-                const rawRole = user.app_metadata?.role || user.user_metadata?.role;
-                const userRole = (rawRole ? String(rawRole).toLowerCase() : null) as UserRole;
-                setRole(userRole || 'admin');
-            } else {
-                setUser(null);
-                setRole(null);
-                if (requireAuth) {
-                    router.push('/login');
+            if (error || !user) {
+                if (isMounted) {
+                    setUser(null)
+                    setRole(null)
+                    setUserId(null)
+                    setLoading(false)
+                }
+                if (requireAuth) router.push("/login")
+                return
+            }
+
+            if (isMounted) {
+                setUser(user)
+                setUserId(user.id)
+
+                // 1. Try metadata first
+                const rawRole = user.app_metadata?.role || user.user_metadata?.role
+                if (rawRole) {
+                    setRole(String(rawRole).toLowerCase() as UserRole)
+                    setLoading(false)
+                } else {
+                    // 2. Fallback to Prisma if metadata is missing
+                    try {
+                        const dbRole = await getRoleFromPrisma()
+                        setRole(dbRole as UserRole)
+                    } catch {
+                        setRole('student')
+                    } finally {
+                        setLoading(false)
+                    }
                 }
             }
-            setLoading(false);
-        };
-
-        getUser();
-
-        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-            if (session?.user) {
-                setUser(session.user);
-                const rawRole = session.user.app_metadata?.role || session.user.user_metadata?.role;
-                const userRole = (rawRole ? String(rawRole).toLowerCase() : null) as UserRole;
-                setRole(userRole || 'admin');
-            } else {
-                setUser(null);
-                setRole(null);
-                if (requireAuth) {
-                    router.push('/login');
-                }
-            }
-            setLoading(false);
-        });
-
-        return () => subscription.unsubscribe();
-    }, [router, requireAuth, supabase.auth]);
+        }
+        fetchUser()
+        return () => { isMounted = false }
+    }, [requireAuth, router])
 
     const logout = async () => {
-        try {
-            await supabase.auth.signOut();
-        } catch (error) {
-            console.error("Logout error:", error);
-        }
-        window.location.href = '/login';
-    };
+        const supabase = createClient()
+        await supabase.auth.signOut()
+        router.push("/login")
+        router.refresh()
+    }
 
-    return {
-        isAuthenticated: !!user,
-        user,
-        role,
-        userId: user?.id || null,
-        loading,
-        logout
-    };
+    return { user, role, userId, loading, isAuthenticated: !!user, logout }
 }

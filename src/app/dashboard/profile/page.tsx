@@ -27,7 +27,7 @@ export default async function ProfilePage() {
         const [classes, payments] = await Promise.all([
             prisma.classSession.findMany({
                 where: { instructorId: user.id },
-                include: { attendees: true },
+                include: { attendees: { include: { student: true } } },
                 orderBy: { date: 'asc' }
             }),
             getInstructorPayments(user.id)
