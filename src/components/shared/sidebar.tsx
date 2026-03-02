@@ -13,7 +13,7 @@ export const menuItems = [
 ]
 
 export function Sidebar() {
-    const { logout, role } = useAuth(false)
+    const { logout, role, user } = useAuth(false)
 
     const filteredItems = menuItems.filter(item => {
         if (role === 'instructor') {
@@ -49,6 +49,23 @@ export function Sidebar() {
                 ))}
             </nav>
             <div className="border-t p-4 dark:border-slate-800">
+                {user && (
+                    <div className="mb-4 px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center gap-2">
+                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                                {user.user_metadata?.name?.charAt(0) || user.email?.charAt(0) || 'U'}
+                            </div>
+                            <div className="flex flex-col min-w-0">
+                                <span className="text-sm font-semibold truncate text-slate-700 dark:text-slate-200">
+                                    {user.user_metadata?.name || 'Usuario'}
+                                </span>
+                                <span className="text-[10px] text-slate-500 truncate">
+                                    {user.email}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
                 <button
                     onClick={logout}
                     className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -9,12 +9,20 @@ import { Dumbbell, Loader2 } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { login } from "@/actions/auth"
+import { useAuth } from "@/hooks/useAuth"
 
 export default function LoginPage() {
     const router = useRouter()
+    const { isAuthenticated, loading } = useAuth(false)
     const [isLoading, setIsLoading] = useState(false)
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
+
+    useEffect(() => {
+        if (!loading && isAuthenticated) {
+            router.push("/dashboard")
+        }
+    }, [isAuthenticated, loading, router])
 
     const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
