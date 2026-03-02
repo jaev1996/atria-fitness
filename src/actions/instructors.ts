@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { Prisma } from "@prisma/client"
 
+import { ensureRole } from "@/lib/auth-utils"
+
 export async function getInstructors() {
     console.log("Action: getInstructors called")
     try {
@@ -22,6 +24,8 @@ export async function getInstructors() {
 }
 
 export async function addInstructor(data: { name: string, email: string, phone?: string, specialties: string[], bio?: string }) {
+    await ensureRole(['admin'])
+
     // 0. Check if instructor already exists in Prisma to avoid duplicates
     const existing = await prisma.user.findUnique({ where: { email: data.email } })
     if (existing) throw new Error("Ya existe un usuario registrado con este correo electrónico.")
@@ -54,6 +58,7 @@ export async function addInstructor(data: { name: string, email: string, phone?:
 }
 
 export async function updateInstructor(id: string, data: Prisma.UserUpdateInput) {
+    await ensureRole(['admin'])
     const updated = await prisma.user.update({
         where: { id },
         data
@@ -64,6 +69,7 @@ export async function updateInstructor(id: string, data: Prisma.UserUpdateInput)
 }
 
 export async function deleteInstructor(id: string) {
+    await ensureRole(['admin'])
     await prisma.user.delete({ where: { id } })
     revalidatePath('/dashboard/instructors')
 }

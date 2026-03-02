@@ -18,6 +18,8 @@ export const metadata: Metadata = {
   description: "Sistema de Gestión para Centro Fitness",
 };
 
+import { CookieConsent } from "@/components/shared/cookie-consent";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,6 +31,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        <CookieConsent />
         <Toaster />
       </body>
     </html>

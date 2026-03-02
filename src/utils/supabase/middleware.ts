@@ -15,7 +15,7 @@ export async function updateSession(request: NextRequest) {
                     return request.cookies.getAll()
                 },
                 setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+                    cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
                     supabaseResponse = NextResponse.next({
                         request,
                     })
@@ -35,24 +35,46 @@ export async function updateSession(request: NextRequest) {
         data: { user },
     } = await supabase.auth.getUser()
 
+    const path = request.nextUrl.pathname
+
+    // 1. Redirección si no hay usuario (a excepción de login y root)
     if (
         !user &&
-        !request.nextUrl.pathname.startsWith('/login') &&
-        request.nextUrl.pathname !== '/'
+        !path.startsWith('/login') &&
+        path !== '/'
     ) {
-        // no user, potentially respond by redirecting the user to the login page
         const url = request.nextUrl.clone()
         url.pathname = '/login'
         return NextResponse.redirect(url)
     }
 
-    // IMPORTANT: You *must* return the supabaseResponse object as it is. If you're
-    // creating a new response object with NextResponse.next() make sure to:
-    // 1. Pass the request in it, like so:
-    //    const myNewResponse = NextResponse.next({ request })
-    // 2. Copy over the cookies, like so:
-    //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-    // 3. Change the myNewResponse object to fit your needs, but remember that it needs to depart from the supabaseResponse object.
+    // 2. Redirección si ya hay usuario e intenta ir al login o root
+    if (user && (path === '/login' || path === '/')) {
+        const url = request.nextUrl.clone()
+        url.pathname = '/dashboard'
+        return NextResponse.redirect(url)
+    }
+
+    // 3. Validación de Roles (RBAC)
+    if (user) {
+        const role = (user.app_metadata?.role || user.user_metadata?.role || 'student').toLowerCase()
+
+        // Rutas exclusivas para ADMIN
+        const adminOnlyPaths = ['/dashboard/instructors', '/dashboard/settings']
+        if (adminOnlyPaths.some(p => path.startsWith(p)) && role !== 'admin') {
+            const url = request.nextUrl.clone()
+            url.pathname = '/dashboard'
+            return NextResponse.redirect(url)
+        }
+
+        // Rutas para ADMIN e INSTRUCTOR
+        const instructorPaths = ['/dashboard/students', '/dashboard/calendar']
+        if (instructorPaths.some(p => path.startsWith(p)) && role === 'student') {
+            const url = request.nextUrl.clone()
+            url.pathname = '/dashboard'
+            return NextResponse.redirect(url)
+        }
+    }
 
     return supabaseResponse
 }
