@@ -138,8 +138,8 @@ function InstructorsContent() {
             }
             setIsDialogOpen(false)
             loadInstructors()
-        } catch (error: any) {
-            toast.error(error.message || "Ocurrió un error al guardar")
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Ocurrió un error al guardar")
         } finally {
             setIsSaving(false)
         }

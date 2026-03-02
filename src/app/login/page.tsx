@@ -35,7 +35,7 @@ export default function LoginPage() {
                 router.push("/dashboard")
                 router.refresh()
             }
-        } catch (error) {
+        } catch {
             toast.error("Ocurrió un error inesperado")
             setIsLoading(false)
         }

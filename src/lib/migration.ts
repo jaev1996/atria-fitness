@@ -1,13 +1,116 @@
-import { PrismaClient } from '@prisma/client'
+import {
+    PrismaClient,
+    StudentStatus,
+    PaymentMethod,
+    ClassStatus,
+    AttendanceStatus,
+    AttendanceType
+} from '@prisma/client'
 
 const prisma = new PrismaClient()
+
+interface LocalPlan {
+    id: string;
+    disciplina: string;
+    creditos: number;
+    activo: boolean;
+    nombreOriginal: string;
+}
+
+interface LocalPayment {
+    id: string;
+    date: string;
+    amount: number;
+    method: string;
+    concept: string;
+}
+
+interface LocalHistory {
+    id: string;
+    date: string;
+    activity: string;
+    notes: string;
+    cost: number;
+}
+
+interface LocalAttendee {
+    studentId: string;
+    status: string;
+    attendanceType: string;
+    creditDeducted: boolean;
+}
+
+interface LocalInstructor {
+    id: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    specialties: string[];
+    bio?: string;
+}
+
+interface LocalStudent {
+    id: string;
+    name: string;
+    email: string;
+    phone: string;
+    status: string;
+    medicalInfo?: string;
+    allergies?: string;
+    injuries?: string;
+    conditions?: string;
+    emergencyContact?: string;
+    sportsInfo?: string;
+    plans: LocalPlan[];
+    payments: LocalPayment[];
+    history: LocalHistory[];
+}
+
+interface LocalClass {
+    id: string;
+    instructorId: string;
+    date: string;
+    startTime: string;
+    endTime: string;
+    status: string;
+    type: string;
+    room: string;
+    maxCapacity: number;
+    notes: string;
+    isPrivate: boolean;
+    attendees: LocalAttendee[];
+}
+
+interface LocalInstructorPayment {
+    id: string;
+    instructorId: string;
+    date: string;
+    amount: number;
+    startDate: string;
+    endDate: string;
+    notes: string;
+    classIds: string[];
+}
+
+interface LocalSettings {
+    disciplineRates: Record<string, number>;
+    roomDisciplines: Record<string, string[]>;
+}
+
+interface LocalData {
+    instructors: LocalInstructor[];
+    students: LocalStudent[];
+    classes: LocalClass[];
+    instructorPayments: LocalInstructorPayment[];
+    settings?: LocalSettings;
+}
 
 // This script is intended to be run from the browser console or as a temporary utility
 // To migrate localStorage data (atria_fitness_data_v3) to the database.
 // Since we can't easily read localStorage from a node script, 
 // we'll provide a function that can be called from the dashboard.
 
-export async function migrateLocalToDb(localData: any) {
+export async function migrateLocalToDb(localData: LocalData) {
     console.log("Starting migration...", localData)
 
     try {
@@ -42,7 +145,7 @@ export async function migrateLocalToDb(localData: any) {
                     email: std.email,
                     phone: std.phone,
                     role: 'STUDENT',
-                    status: std.status.toUpperCase() as any,
+                    status: std.status.toUpperCase() as StudentStatus,
                     medicalInfo: std.medicalInfo,
                     allergies: std.allergies,
                     injuries: std.injuries,
@@ -50,7 +153,7 @@ export async function migrateLocalToDb(localData: any) {
                     emergencyContact: std.emergencyContact,
                     sportsInfo: std.sportsInfo,
                     plans: {
-                        create: std.plans.map((p: any) => ({
+                        create: std.plans.map((p: LocalPlan) => ({
                             id: p.id,
                             discipline: p.disciplina,
                             credits: p.creditos,
@@ -59,16 +162,16 @@ export async function migrateLocalToDb(localData: any) {
                         }))
                     },
                     paymentsMade: {
-                        create: std.payments.map((py: any) => ({
+                        create: std.payments.map((py: LocalPayment) => ({
                             id: py.id,
                             date: new Date(py.date),
                             amount: py.amount,
-                            method: py.method.toUpperCase() as any,
+                            method: py.method.toUpperCase() as PaymentMethod,
                             concept: py.concept
                         }))
                     },
                     history: {
-                        create: std.history.map((h: any) => ({
+                        create: std.history.map((h: LocalHistory) => ({
                             id: h.id,
                             date: new Date(h.date),
                             activity: h.activity,
@@ -89,17 +192,17 @@ export async function migrateLocalToDb(localData: any) {
                     date: new Date(cls.date),
                     startTime: cls.startTime,
                     endTime: cls.endTime,
-                    status: cls.status.toUpperCase() as any,
+                    status: cls.status.toUpperCase() as ClassStatus,
                     type: cls.type,
                     room: cls.room,
                     maxCapacity: cls.maxCapacity,
                     notes: cls.notes,
                     isPrivate: cls.isPrivate,
                     attendees: {
-                        create: cls.attendees.map((a: any) => ({
+                        create: cls.attendees.map((a: LocalAttendee) => ({
                             studentId: a.studentId,
-                            status: a.status.toUpperCase() as any,
-                            attendanceType: a.attendanceType.toUpperCase() as any,
+                            status: a.status.toUpperCase() as AttendanceStatus,
+                            attendanceType: a.attendanceType.toUpperCase() as AttendanceType,
                             creditDeducted: a.creditDeducted
                         }))
                     }
@@ -141,3 +244,4 @@ export async function migrateLocalToDb(localData: any) {
         console.error("Migration failed:", error)
     }
 }
+
