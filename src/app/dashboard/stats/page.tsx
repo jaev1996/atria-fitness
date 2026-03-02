@@ -11,6 +11,9 @@ import {
 } from "recharts"
 import { Users, CalendarDays, TrendingUp, Percent, Award, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useAuth } from "@/hooks/useAuth"
+import { ShieldAlert, Loader2 } from "lucide-react"
+import Link from "next/link"
 
 const COLORS = ["#e11d48", "#2563eb", "#16a34a", "#d97706", "#9333ea", "#0891b2", "#4f46e5", "#db2777"]
 
@@ -26,6 +29,7 @@ function SkeletonChart() {
 }
 
 export default function StatsPage() {
+    const { role, loading: authLoading } = useAuth(true)
     const [stats, setStats] = useState<Stats | null>(null)
     const [loading, setLoading] = useState(true)
     const [selectedDate, setSelectedDate] = useState(() => new Date())
@@ -44,7 +48,35 @@ export default function StatsPage() {
         }
     }, [selectedDate])
 
-    useEffect(() => { loadStats() }, [loadStats])
+    useEffect(() => {
+        if (role === 'admin') {
+            loadStats()
+        }
+    }, [loadStats, role])
+
+    if (authLoading) return (
+        <div className="flex h-screen flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 gap-4 text-slate-500">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <p className="italic text-sm animate-pulse">Verificando permisos...</p>
+        </div>
+    );
+
+    if (role !== 'admin') {
+        return (
+            <div className="flex h-screen items-center justify-center p-4 bg-slate-50 dark:bg-slate-900">
+                <div className="text-center bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg border max-w-md w-full">
+                    <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
+                        <ShieldAlert className="h-10 w-10 text-destructive" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-2 italic">Acceso Denegado</h2>
+                    <p className="text-slate-500 dark:text-slate-400 mb-8">Lo sentimos, esta sección es exclusiva para la administración de Atria Fitness.</p>
+                    <Link href="/dashboard">
+                        <Button className="w-full h-12 text-lg">Volver al Dashboard</Button>
+                    </Link>
+                </div>
+            </div>
+        )
+    }
 
     const navigateMonth = (direction: "prev" | "next") => {
         const newDate = new Date(selectedDate)

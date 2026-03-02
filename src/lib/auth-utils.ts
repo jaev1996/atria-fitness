@@ -62,7 +62,17 @@ export async function ensureRole(allowedRoles: string[]) {
         throw new Error("No autenticado")
     }
 
-    const role = (user.app_metadata?.role || user.user_metadata?.role || 'student').toLowerCase()
+    let role = (user.app_metadata?.role || user.user_metadata?.role || '').toLowerCase()
+
+    if (!role) {
+        // Fallback to Prisma
+        const { default: prisma } = await import('@/lib/prisma')
+        const dbUser = await prisma.user.findUnique({
+            where: { id: user.id },
+            select: { role: true }
+        })
+        role = (dbUser?.role || 'STUDENT').toLowerCase()
+    }
 
     if (!allowedRoles.includes(role)) {
         throw new Error("No tienes permisos suficientes para realizar esta acción")

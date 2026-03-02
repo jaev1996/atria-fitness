@@ -37,10 +37,11 @@ export async function updateSession(request: NextRequest) {
 
     const path = request.nextUrl.pathname
 
-    // 1. Redirección si no hay usuario (a excepción de login y root)
+    // 1. Redirección si no hay usuario (a excepción de rutas públicas)
+    const publicPaths = ['/login', '/privacy']
     if (
         !user &&
-        !path.startsWith('/login') &&
+        !publicPaths.some(p => path.startsWith(p)) &&
         path !== '/'
     ) {
         const url = request.nextUrl.clone()
@@ -55,26 +56,9 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(url)
     }
 
-    // 3. Validación de Roles (RBAC)
-    if (user) {
-        const role = (user.app_metadata?.role || user.user_metadata?.role || 'student').toLowerCase()
-
-        // Rutas exclusivas para ADMIN
-        const adminOnlyPaths = ['/dashboard/instructors', '/dashboard/settings']
-        if (adminOnlyPaths.some(p => path.startsWith(p)) && role !== 'admin') {
-            const url = request.nextUrl.clone()
-            url.pathname = '/dashboard'
-            return NextResponse.redirect(url)
-        }
-
-        // Rutas para ADMIN e INSTRUCTOR
-        const instructorPaths = ['/dashboard/students', '/dashboard/calendar']
-        if (instructorPaths.some(p => path.startsWith(p)) && role === 'student') {
-            const url = request.nextUrl.clone()
-            url.pathname = '/dashboard'
-            return NextResponse.redirect(url)
-        }
-    }
+    // 3. Validación de Roles (RBAC) movida a Layouts/Páginas 
+    // Debido a que el Middleware corre en Edge Runtime y no puede acceder a Prisma fácilmente,
+    // la validación de roles con fallback a base de datos se maneja en los componentes de servidor o hooks.
 
     return supabaseResponse
 }

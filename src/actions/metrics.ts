@@ -1,6 +1,7 @@
 "use server"
 
 import prisma from "@/lib/prisma"
+import { ensureRole } from "@/lib/auth-utils"
 
 // ── Helpers ────────────────────────────────────────────
 const toUTCDateStr = (d: Date) =>
@@ -8,6 +9,7 @@ const toUTCDateStr = (d: Date) =>
 
 // ── Dashboard Summary ──────────────────────────────────
 export async function getDashboardMetrics(instructorId?: string) {
+    await ensureRole(['admin', 'instructor'])
     const now = new Date()
 
     // Today UTC range
@@ -83,6 +85,7 @@ export async function getDashboardMetrics(instructorId?: string) {
 
 // ── Stats / Reports ─────────────────────────────────────
 export async function getMonthlyStats(year: number, month: number) {
+    await ensureRole(['admin'])
     const startDate = new Date(Date.UTC(year, month - 1, 1))
     const endDate = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999))
 

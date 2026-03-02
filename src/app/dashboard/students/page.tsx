@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sidebar } from "@/components/shared/sidebar"
 import { MobileNav } from "@/components/shared/mobile-nav"
 import { useAuth } from "@/hooks/useAuth"
-import { PlusCircle, Search, Eye, Trash2, User as UserIcon, Download, Cross, ShieldAlert } from "lucide-react"
+import { PlusCircle, Search, Eye, Trash2, User as UserIcon, Download, Cross, ShieldAlert, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { Badge } from "@/components/ui/badge"
 import { toast } from "sonner"
@@ -30,7 +30,7 @@ type StudentWithParams = User & {
 }
 
 function StudentsContent() {
-    const { role } = useAuth()
+    const { role, loading: authLoading } = useAuth(true)
     const [students, setStudents] = useState<StudentWithParams[]>([])
     const [isLoading, setIsLoading] = useState(true)
     const [isPending, startTransition] = useTransition()
@@ -104,6 +104,30 @@ function StudentsContent() {
         initialItemsPerPage: 10,
         customFilter
     });
+
+    if (authLoading) return (
+        <div className="flex h-screen flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 gap-4 text-slate-500">
+            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <p className="italic text-sm animate-pulse">Verificando permisos...</p>
+        </div>
+    );
+
+    if (role !== 'admin' && role !== 'instructor') {
+        return (
+            <div className="flex h-screen items-center justify-center p-4 bg-slate-50 dark:bg-slate-900">
+                <div className="text-center bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg border max-w-md w-full">
+                    <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-6">
+                        <ShieldAlert className="h-10 w-10 text-destructive" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-800 dark:text-slate-100 mb-2 italic">Acceso Denegado</h2>
+                    <p className="text-slate-500 dark:text-slate-400 mb-8">Lo sentimos, esta sección es exclusiva para la administración e instructores de Atria Fitness.</p>
+                    <Link href="/dashboard">
+                        <Button className="w-full h-12 text-lg">Volver al Dashboard</Button>
+                    </Link>
+                </div>
+            </div>
+        )
+    }
 
     const handleCreateStudent = async () => {
         if (!newStudent.name || !newStudent.phone) {
@@ -199,11 +223,11 @@ function StudentsContent() {
                         <p className="text-slate-500 text-sm">Administra inscripciones, planes y fichas médicas.</p>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-                        <Button variant="outline" onClick={handleExportCSV} className="w-full sm:w-auto">
-                            <Download className="mr-2 h-4 w-4" /> Exportar CSV
-                        </Button>
-                        {role !== 'instructor' && (
+                    {role === 'admin' && (
+                        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                            <Button variant="outline" onClick={handleExportCSV} className="w-full sm:w-auto">
+                                <Download className="mr-2 h-4 w-4" /> Exportar CSV
+                            </Button>
                             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                                 <DialogTrigger asChild>
                                     <Button className="bg-primary hover:bg-primary/90 text-primary-foreground w-full sm:w-auto">
@@ -344,8 +368,8 @@ function StudentsContent() {
                                     </DialogFooter>
                                 </DialogContent>
                             </Dialog>
-                        )}
-                    </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* FILTERS TOOLBAR */}
@@ -389,7 +413,7 @@ function StudentsContent() {
 
                             {(filters.planType || filters.hasMedical || searchTerm) && (
                                 <Button variant="ghost" onClick={clearFilters} className="text-destructive hover:bg-destructive/10 w-full sm:w-auto">
-                                    <Cross className="h-4 w-4 mr-2 rotate-45" /> Limpiar
+                                    <Cross className="h-4 w-4 mr-2 rotate-45" /> Limpiar Filtros
                                 </Button>
                             )}
                         </div>
@@ -495,7 +519,7 @@ function StudentsContent() {
                                                                 <Eye className="h-4 w-4" />
                                                             </Button>
                                                         </Link>
-                                                        {role !== 'instructor' && (
+                                                        {role === 'admin' && (
                                                             <Button variant="ghost" size="sm" className="text-slate-400 hover:text-destructive hover:bg-destructive/10" onClick={() => handleDeleteStudent(student.id)}>
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
@@ -530,7 +554,29 @@ function StudentsContent() {
 
 export default function StudentsPage() {
     return (
-        <Suspense fallback={<div className="flex h-screen items-center justify-center">Cargando...</div>}>
+        <Suspense fallback={
+            <div className="flex h-screen bg-slate-50 dark:bg-slate-900">
+                <Sidebar />
+                <div className="flex-1 flex items-center justify-center p-8">
+                    <div className="flex flex-col items-center gap-6 bg-white dark:bg-slate-800/80 backdrop-blur px-14 py-12 rounded-3xl shadow-lg border border-slate-100 dark:border-slate-700">
+                        <div className="relative flex items-center justify-center">
+                            <div className="absolute h-24 w-24 rounded-full bg-primary/10 animate-pulse" />
+                            <div className="absolute h-20 w-20 rounded-full ring-2 ring-primary/30" />
+                            <Loader2 className="h-10 w-10 text-primary animate-spin relative z-10" />
+                        </div>
+                        <div className="flex flex-col items-center gap-1.5">
+                            <p className="text-base font-semibold text-slate-800 dark:text-slate-100 tracking-tight">Cargando alumnas</p>
+                            <p className="text-sm text-slate-400 dark:text-slate-500">Atria Fitness</p>
+                        </div>
+                        <div className="flex gap-1.5">
+                            {[0, 150, 300].map((delay) => (
+                                <span key={delay} className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: `${delay}ms` }} />
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }>
             <StudentsContent />
         </Suspense>
     )

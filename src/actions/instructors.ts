@@ -35,7 +35,8 @@ export async function addInstructor(data: { name: string, email: string, phone?:
         email: data.email,
         password: 'atria2026', // Initial default password
         email_confirm: true,  // Auto-confirm email
-        user_metadata: { name: data.name, role: 'INSTRUCTOR' }
+        user_metadata: { name: data.name, role: 'INSTRUCTOR' },
+        app_metadata: { role: 'instructor' }
     })
 
     if (authError) throw new Error(`Error en Supabase Auth: ${authError.message}`)
@@ -63,6 +64,17 @@ export async function updateInstructor(id: string, data: Prisma.UserUpdateInput)
         where: { id },
         data
     })
+    // Sincronizar con Supabase Auth metadata para rendimiento
+    await supabaseAdmin.auth.admin.updateUserById(id, {
+        user_metadata: {
+            name: typeof updated.name === 'string' ? updated.name : undefined,
+            role: updated.role.toLowerCase()
+        },
+        app_metadata: {
+            role: updated.role.toLowerCase()
+        }
+    })
+
     revalidatePath('/dashboard/instructors')
     revalidatePath(`/dashboard/instructors/${id}`)
     return updated

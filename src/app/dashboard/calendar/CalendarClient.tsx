@@ -467,7 +467,7 @@ export function CalendarClient({
                                                                     classSession || (role !== 'instructor' && role !== null) ? "cursor-pointer" : "cursor-default"
                                                                 )}
                                                                 onClick={() => {
-                                                                    if (classSession || (role !== 'instructor' && role !== null)) {
+                                                                    if (classSession || role === 'admin' || role === null) {
                                                                         handleSlotClick(date, hour)
                                                                     }
                                                                 }}
@@ -573,8 +573,7 @@ export function CalendarClient({
                                     <p className="text-[10px] text-slate-400">Disciplinas permitidas en esta sala.</p>
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label>Instructor</Label>
-                                    <Select value={formData.instructorId} onValueChange={v => setFormData({ ...formData, instructorId: v })} disabled={role === 'instructor'}>
+                                    <Select value={formData.instructorId} onValueChange={v => setFormData({ ...formData, instructorId: v })} disabled={role === 'instructor' || role === 'student'}>
                                         <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                                         <SelectContent>
                                             {availableInstructors.length > 0 ? (
@@ -607,7 +606,7 @@ export function CalendarClient({
                                 </div>
                             </div>
                             <div className="flex items-center space-x-2 pt-2 pb-2">
-                                <Checkbox id="isPrivate" checked={formData.isPrivate} onCheckedChange={(c) => setFormData({ ...formData, isPrivate: c as boolean })} disabled={role === 'instructor'} />
+                                <Checkbox id="isPrivate" checked={formData.isPrivate} onCheckedChange={(c) => setFormData({ ...formData, isPrivate: c as boolean })} disabled={role === 'instructor' || role === 'student'} />
                                 <Label htmlFor="isPrivate" className="font-semibold text-purple-600 dark:text-purple-400 flex items-center gap-2">
                                     <Sparkles className="h-4 w-4" /> ¿Es Clase Privada?
                                 </Label>
@@ -630,7 +629,7 @@ export function CalendarClient({
                                     </span>
                                 </h3>
 
-                                {role !== 'instructor' && (
+                                {(role === 'admin' || role === null) && (
                                     <div className="flex flex-col gap-4">
                                         <div className="space-y-2">
                                             <Label>Buscar Alumna</Label>
@@ -673,7 +672,7 @@ export function CalendarClient({
                                                         </span>
                                                     )}
                                                 </div>
-                                                {(role !== 'instructor' && role !== null) && (
+                                                {(role === 'admin' || role === null) && (
                                                     <Button variant="ghost" size="sm" className="h-6 w-6 text-red-500 hover:bg-red-50" onClick={() => handleRemoveStudent(attendee.studentId)} disabled={isPending}>
                                                         <Trash className="h-3 w-3" />
                                                     </Button>

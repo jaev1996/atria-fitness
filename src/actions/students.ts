@@ -2,12 +2,29 @@
 
 import prisma from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
-import { StudentStatus, PaymentMethod, User } from "@prisma/client"
+import { StudentStatus, PaymentMethod, User, Prisma } from "@prisma/client"
 import { supabaseAdmin } from "@/lib/supabase-admin"
+import { ensureRole } from "@/lib/auth-utils"
 
 export async function getStudents() {
+    const user = await ensureRole(['admin', 'instructor'])
+    const role = (user.app_metadata?.role || user.user_metadata?.role || '').toLowerCase()
+
+    const where: Prisma.UserWhereInput = { role: 'STUDENT' }
+
+    // Si es instructor, solo ver alumnas que asistan a sus clases
+    if (role === 'instructor') {
+        where.attendances = {
+            some: {
+                class: {
+                    instructorId: user.id
+                }
+            }
+        }
+    }
+
     return await prisma.user.findMany({
-        where: { role: 'STUDENT' },
+        where,
         include: {
             plans: true,
             paymentsMade: true,
@@ -18,8 +35,17 @@ export async function getStudents() {
 }
 
 export async function getStudentsSummary() {
+    const user = await ensureRole(['admin', 'instructor'])
+    const role = (user.app_metadata?.role || user.user_metadata?.role || '').toLowerCase()
+
+    const where: Prisma.UserWhereInput = { role: 'STUDENT' }
+
+    if (role === 'instructor') {
+        where.attendances = { some: { class: { instructorId: user.id } } }
+    }
+
     const students = await prisma.user.findMany({
-        where: { role: 'STUDENT' },
+        where,
         select: {
             id: true,
             name: true,
@@ -34,7 +60,10 @@ export async function getStudentsSummary() {
 }
 
 export async function getStudent(id: string) {
-    return await prisma.user.findUnique({
+    const user = await ensureRole(['admin', 'instructor'])
+    const role = (user.app_metadata?.role || user.user_metadata?.role || '').toLowerCase()
+
+    const student = await prisma.user.findUnique({
         where: { id },
         include: {
             plans: true,
@@ -45,6 +74,20 @@ export async function getStudent(id: string) {
             }
         }
     })
+
+    if (!student) return null
+
+    // Si es instructor, validar que la alumna asista a sus clases
+    if (role === 'instructor') {
+        const hasAttendedInstructorClass = student.attendances.some(
+            a => a.class.instructorId === user.id
+        )
+        if (!hasAttendedInstructorClass) {
+            throw new Error("No tienes permiso para ver esta alumna.")
+        }
+    }
+
+    return student
 }
 
 export async function addStudent(data: {
@@ -61,6 +104,7 @@ export async function addStudent(data: {
     emergencyContact?: string,
     sportsInfo?: string
 }) {
+    await ensureRole(['admin'])
     const { planType, discipline, ...studentData } = data
 
     // Generate placeholder email if not provided
@@ -71,7 +115,8 @@ export async function addStudent(data: {
         email: email,
         password: 'atria-fitness-2026', // Initial default password
         email_confirm: true,
-        user_metadata: { name: data.name, role: 'STUDENT' }
+        user_metadata: { name: data.name, role: 'STUDENT' },
+        app_metadata: { role: 'student' }
     })
 
     if (authError) {
@@ -124,18 +169,23 @@ export async function addStudent(data: {
 }
 
 export async function updateStudent(id: string, data: Partial<User>) {
+    await ensureRole(['admin'])
     const updated = await prisma.user.update({
         where: { id },
         data
     })
 
-    // If name or email changed, update Supabase metadata
-    if (data.name || data.email) {
-        await supabaseAdmin.auth.admin.updateUserById(id, {
-            email: data.email,
-            user_metadata: { name: data.name }
-        })
-    }
+    // Sync to Supabase Auth metadata for performance (avoiding Prisma lookups)
+    await supabaseAdmin.auth.admin.updateUserById(id, {
+        email: data.email,
+        user_metadata: {
+            name: data.name,
+            role: (data.role || 'STUDENT').toString().toLowerCase()
+        },
+        app_metadata: {
+            role: (data.role || 'STUDENT').toString().toLowerCase()
+        }
+    })
 
     revalidatePath('/dashboard/students')
     revalidatePath(`/dashboard/students/${id}`)
@@ -143,6 +193,7 @@ export async function updateStudent(id: string, data: Partial<User>) {
 }
 
 export async function deleteStudent(id: string) {
+    await ensureRole(['admin'])
     try {
         // 1. Delete from Supabase Auth
         await supabaseAdmin.auth.admin.deleteUser(id)
@@ -157,11 +208,13 @@ export async function deleteStudent(id: string) {
 }
 
 export async function deleteStudentPlan(planId: string, studentId: string) {
+    await ensureRole(['admin'])
     await prisma.studentPlan.delete({ where: { id: planId } })
     revalidatePath(`/dashboard/students/${studentId}`)
 }
 
 export async function deleteHistoryEntry(entryId: string, studentId: string) {
+    await ensureRole(['admin'])
     await prisma.studentHistory.delete({ where: { id: entryId } })
     revalidatePath(`/dashboard/students/${studentId}`)
 }
@@ -175,6 +228,7 @@ export async function processStudentPayment(data: {
     credits: number,
     discipline?: string
 }) {
+    await ensureRole(['admin'])
     return await prisma.$transaction([
         prisma.studentPayment.create({
             data: {
@@ -197,6 +251,7 @@ export async function processStudentPayment(data: {
 }
 
 export async function addHistoryEntry(studentId: string, data: { activity: string, notes?: string, cost?: number }) {
+    await ensureRole(['admin'])
     const entry = await prisma.studentHistory.create({
         data: {
             studentId,

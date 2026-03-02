@@ -15,7 +15,8 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, DollarSign, Users, Briefcase, Mail, Phone, Printer, CheckCircle2, History, Trash, ChevronDown, ChevronRight, Sparkles, Calendar, Clock } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { ArrowLeft, DollarSign, Users, Briefcase, Mail, Phone, Printer, CheckCircle2, History, Trash, ChevronDown, ChevronRight, Sparkles, Calendar, Clock, Eye } from "lucide-react"
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns"
 import { toast } from "sonner"
 
@@ -469,6 +470,7 @@ export function InstructorDetailClient({
                                             disciplineRates={disciplineRates}
                                             isPending={isPending}
                                             onDelete={handleDeletePayment}
+                                            instructorName={instructor.name}
                                         />)
                                 )}
                             </CardContent>
@@ -486,22 +488,144 @@ function PaymentAccordion({
     disciplineRates,
     isPending,
     onDelete,
+    instructorName,
 }: {
     payment: PaymentWithClasses
     disciplineRates: Record<string, { privateRate: number; rates: Tier[] }> | null
     isPending: boolean
     onDelete: (id: string) => void
+    instructorName: string
 }) {
     const [expanded, setExpanded] = useState(false)
     const [expandedClassId, setExpandedClassId] = useState<string | null>(null)
+    const [showModal, setShowModal] = useState(false)
 
     const totalStudents = payment.classes.reduce((acc, c) => acc + c.attendees.filter(a => a.status === 'BOOKED').length, 0)
 
+    // ── Print voucher in new window ──────────────────────────────────────────
+    const printVoucher = () => {
+        const rows = payment.classes.map((cls, idx) => {
+            const roomName = ROOMS.find(r => r.id === cls.room)?.name || cls.room
+            const classAmount = calculateClassPayment(cls, disciplineRates)
+            const bookedAttendees = cls.attendees.filter(a => a.status === 'BOOKED')
+            const studentList = bookedAttendees.map(a => a.student.name).join(', ') || '—'
+            return `
+                <tr style="border-bottom:1px solid #e2e8f0">
+                    <td style="padding:8px 6px;font-size:13px;color:#374151">${idx + 1}</td>
+                    <td style="padding:8px 6px;font-size:13px">${format(parseISO(toDateStr(cls.date)), 'dd/MM/yyyy')} ${cls.startTime}</td>
+                    <td style="padding:8px 6px;font-size:13px">${cls.type}${cls.isPrivate ? ' ★' : ''}</td>
+                    <td style="padding:8px 6px;font-size:13px">${roomName}</td>
+                    <td style="padding:8px 6px;font-size:13px;text-align:center">${bookedAttendees.length}</td>
+                    <td style="padding:8px 6px;font-size:13px;font-weight:600;color:#16a34a;text-align:right">${formatCurrency(classAmount)}</td>
+                </tr>
+                <tr style="background:#f8fafc">
+                    <td></td>
+                    <td colspan="5" style="padding:4px 6px 10px 6px;font-size:11px;color:#64748b;font-style:italic">Alumnas: ${studentList}</td>
+                </tr>`
+        }).join('')
+
+        const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <title>Comprobante de Liquidación — ${instructorName}</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1e293b; background: #fff; padding: 40px; }
+        .header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 32px; padding-bottom: 20px; border-bottom: 3px solid #7c3aed; }
+        .brand { font-size: 26px; font-weight: 800; color: #7c3aed; letter-spacing: -0.5px; }
+        .brand-sub { font-size: 13px; color: #64748b; margin-top: 2px; }
+        .voucher-title { font-size: 14px; color: #64748b; text-align: right; }
+        .voucher-title strong { display: block; font-size: 18px; color: #1e293b; }
+        .meta-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 28px; }
+        .meta-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px; }
+        .meta-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; font-weight: 600; margin-bottom: 4px; }
+        .meta-value { font-size: 15px; font-weight: 600; color: #1e293b; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
+        thead tr { background: #7c3aed; }
+        thead th { padding: 10px 6px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: #fff; text-align: left; font-weight: 600; }
+        thead th:last-child { text-align: right; }
+        thead th:nth-child(5) { text-align: center; }
+        .total-row { background: #f0fdf4; border-top: 2px solid #16a34a; }
+        .total-row td { padding: 12px 6px; font-weight: 700; font-size: 15px; color: #16a34a; }
+        .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; }
+        @media print { body { padding: 20px; } }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div>
+            <div class="brand">Atria Fitness</div>
+            <div class="brand-sub">Sistema de Gestión</div>
+        </div>
+        <div class="voucher-title">
+            <strong>Comprobante de Liquidación</strong>
+            Emitido: ${format(new Date(), 'dd/MM/yyyy HH:mm')}
+        </div>
+    </div>
+
+    <div class="meta-grid">
+        <div class="meta-box">
+            <div class="meta-label">Instructor</div>
+            <div class="meta-value">${instructorName}</div>
+        </div>
+        <div class="meta-box">
+            <div class="meta-label">Fecha de Pago</div>
+            <div class="meta-value">${format(parseISO(toDateStr(payment.date)), 'dd/MM/yyyy')}</div>
+        </div>
+        <div class="meta-box">
+            <div class="meta-label">Período</div>
+            <div class="meta-value">${format(parseISO(toDateStr(payment.startDate)), 'dd/MM/yyyy')} — ${format(parseISO(toDateStr(payment.endDate)), 'dd/MM/yyyy')}</div>
+        </div>
+        <div class="meta-box">
+            <div class="meta-label">Resumen</div>
+            <div class="meta-value">${payment.classes.length} clases · ${totalStudents} alumnas</div>
+        </div>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width:32px">#</th>
+                <th>Fecha y Hora</th>
+                <th>Disciplina</th>
+                <th>Sala</th>
+                <th style="text-align:center">Asist.</th>
+                <th style="text-align:right">Total</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${rows}
+            <tr class="total-row">
+                <td colspan="5" style="text-align:right;padding-right:12px">TOTAL LIQUIDADO</td>
+                <td style="text-align:right;padding:12px 6px">${formatCurrency(payment.amount)}</td>
+            </tr>
+        </tbody>
+    </table>
+
+    ${payment.notes ? `<p style="font-size:12px;color:#64748b;font-style:italic;margin-bottom:24px;padding-left:8px;border-left:3px solid #7c3aed">${payment.notes}</p>` : ''}
+
+    <div class="footer">
+        <span>Atria Fitness — Sistema de Gestión</span>
+        <span>Página 1 de 1</span>
+    </div>
+
+    <script>window.onload = () => { window.print(); }</script>
+</body>
+</html>`
+
+        const win = window.open('', '_blank', 'width=900,height=700')
+        if (win) {
+            win.document.write(html)
+            win.document.close()
+        }
+    }
+
     return (
         <div className="bg-white dark:bg-slate-900">
-            {/* ── Payment summary row — split into clickable area + delete button */}
+            {/* ── Payment summary row */}
             <div className="flex items-center gap-3 px-4 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
-                {/* Left clickable area */}
+                {/* Clickable area */}
                 <div
                     role="button"
                     tabIndex={0}
@@ -540,19 +664,39 @@ function PaymentAccordion({
                     </div>
                 </div>
 
-                {/* Delete button — sibling of clickable area, NOT nested */}
-                <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-400 hover:bg-red-50 hover:text-red-600 h-8 w-8 p-0 shrink-0"
-                    disabled={isPending}
-                    onClick={() => onDelete(payment.id)}
-                >
-                    <Trash className="h-4 w-4" />
-                </Button>
+                {/* Action buttons */}
+                <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-slate-400 hover:text-primary hover:bg-primary/10"
+                        title="Ver detalles"
+                        onClick={() => setShowModal(true)}
+                    >
+                        <Eye className="h-4 w-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0 text-slate-400 hover:text-primary hover:bg-primary/10"
+                        title="Imprimir comprobante"
+                        onClick={printVoucher}
+                    >
+                        <Printer className="h-4 w-4" />
+                    </Button>
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-red-400 hover:bg-red-50 hover:text-red-600 h-8 w-8 p-0"
+                        disabled={isPending}
+                        onClick={() => onDelete(payment.id)}
+                    >
+                        <Trash className="h-4 w-4" />
+                    </Button>
+                </div>
             </div>
 
-            {/* ── Expanded detail */}
+            {/* ── Expanded accordion detail */}
             {expanded && (
                 <div className="bg-slate-50 dark:bg-slate-900/50 border-t px-4 pb-4 pt-3 space-y-2">
                     {payment.notes && (
@@ -567,7 +711,6 @@ function PaymentAccordion({
 
                         return (
                             <div key={cls.id} className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
-                                {/* Class header — div to avoid nesting inside the parent accordion */}
                                 <div
                                     role="button"
                                     tabIndex={0}
@@ -578,36 +721,28 @@ function PaymentAccordion({
                                     <span className="text-slate-400 shrink-0">
                                         {isClsOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
                                     </span>
-
                                     <span className="text-xs text-slate-400 font-mono w-5 shrink-0">{idx + 1}.</span>
-
                                     <span className="flex items-center gap-1.5 min-w-[140px] shrink-0">
                                         <Calendar className="h-3 w-3 text-slate-400" />
                                         <span className="text-sm font-medium">{format(parseISO(toDateStr(cls.date)), 'dd/MM/yyyy')}</span>
                                         <Clock className="h-3 w-3 text-slate-400" />
                                         <span className="text-sm">{cls.startTime}</span>
                                     </span>
-
                                     <Badge variant="outline" className="text-xs capitalize shrink-0">{cls.type}</Badge>
-
                                     {cls.isPrivate && (
                                         <Badge className="text-[10px] bg-purple-100 text-purple-700 border-0 shrink-0">
                                             <Sparkles className="h-2.5 w-2.5 mr-0.5" /> Privada
                                         </Badge>
                                     )}
-
                                     <span className="text-xs text-slate-500 flex-1 truncate">{roomName}</span>
-
                                     <span className="text-xs text-slate-400 flex items-center gap-1 shrink-0">
                                         <Users className="h-3 w-3" /> {bookedAttendees.length}
                                     </span>
-
                                     <span className="font-semibold text-sm text-green-600 shrink-0 min-w-[64px] text-right">
                                         {formatCurrency(classAmount)}
                                     </span>
                                 </div>
 
-                                {/* Students expanded */}
                                 {isClsOpen && (
                                     <div className="border-t bg-slate-50/80 dark:bg-slate-900/40 px-4 py-3">
                                         {bookedAttendees.length === 0 ? (
@@ -648,7 +783,6 @@ function PaymentAccordion({
                         )
                     })}
 
-                    {/* Summary footer */}
                     <div className="flex justify-between items-end pt-3 border-t mt-2">
                         <p className="text-xs text-slate-400">{payment.classes.length} clases · {totalStudents} alumnas</p>
                         <div className="text-right">
@@ -658,7 +792,89 @@ function PaymentAccordion({
                     </div>
                 </div>
             )}
+
+            {/* ── Detail Modal ────────────────────────────────────────── */}
+            <Dialog open={showModal} onOpenChange={setShowModal}>
+                <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <History className="h-5 w-5 text-primary" />
+                            Detalles de Liquidación
+                        </DialogTitle>
+                    </DialogHeader>
+
+                    {/* Meta */}
+                    <div className="grid grid-cols-2 gap-3 mt-2">
+                        {[
+                            { label: 'Instructor', value: instructorName },
+                            { label: 'Fecha de Pago', value: format(parseISO(toDateStr(payment.date)), 'dd/MM/yyyy') },
+                            { label: 'Período', value: `${format(parseISO(toDateStr(payment.startDate)), 'dd/MM/yyyy')} — ${format(parseISO(toDateStr(payment.endDate)), 'dd/MM/yyyy')}` },
+                            { label: 'Resumen', value: `${payment.classes.length} clases · ${totalStudents} alumnas` },
+                        ].map(m => (
+                            <div key={m.label} className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3 border">
+                                <p className="text-[10px] uppercase tracking-wide text-slate-400 font-semibold mb-1">{m.label}</p>
+                                <p className="font-semibold text-sm text-slate-800 dark:text-slate-100">{m.value}</p>
+                            </div>
+                        ))}
+                    </div>
+
+                    {/* Classes table */}
+                    <div className="mt-4 space-y-2">
+                        {payment.classes.map((cls, idx) => {
+                            const roomName = ROOMS.find(r => r.id === cls.room)?.name || cls.room
+                            const classAmount = calculateClassPayment(cls, disciplineRates)
+                            const bookedAttendees = cls.attendees.filter(a => a.status === 'BOOKED')
+                            return (
+                                <div key={cls.id} className="border rounded-xl overflow-hidden">
+                                    <div className="flex items-center gap-2 px-4 py-3 bg-slate-50 dark:bg-slate-800">
+                                        <span className="text-xs text-slate-400 font-mono w-5">{idx + 1}.</span>
+                                        <span className="flex items-center gap-1.5 text-sm font-medium flex-1">
+                                            <Calendar className="h-3.5 w-3.5 text-slate-400" />
+                                            {format(parseISO(toDateStr(cls.date)), 'dd/MM/yyyy')} {cls.startTime}
+                                        </span>
+                                        <Badge variant="outline" className="text-xs capitalize">{cls.type}</Badge>
+                                        <span className="text-xs text-slate-500">{roomName}</span>
+                                        <span className="text-xs text-slate-400 flex items-center gap-1">
+                                            <Users className="h-3 w-3" /> {bookedAttendees.length}
+                                        </span>
+                                        <span className="font-bold text-sm text-green-600 min-w-[64px] text-right">{formatCurrency(classAmount)}</span>
+                                    </div>
+                                    {bookedAttendees.length > 0 && (
+                                        <div className="px-4 py-2 divide-y">
+                                            {bookedAttendees.map(att => (
+                                                <div key={att.id} className="flex items-center justify-between py-1.5">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
+                                                            {att.student.name.charAt(0)}
+                                                        </div>
+                                                        <span className="text-sm">{att.student.name}</span>
+                                                    </div>
+                                                    {att.attendanceType === 'COURTESY' && (
+                                                        <Badge className="text-[9px] bg-yellow-100 text-yellow-700 border-0">Cortesía</Badge>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })}
+                    </div>
+
+                    {/* Total */}
+                    <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-5 py-4 mt-4">
+                        <div>
+                            <p className="text-xs text-slate-500 uppercase tracking-wide">Total Liquidado</p>
+                            <p className="text-2xl font-bold text-green-600">{formatCurrency(payment.amount)}</p>
+                        </div>
+                        <Button onClick={printVoucher} className="gap-2 bg-primary hover:bg-primary/90">
+                            <Printer className="h-4 w-4" /> Imprimir Comprobante
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </div>
     )
 }
+
 
