@@ -1,145 +1,105 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useCallback } from "react"
+import { getMonthlyStats } from "@/actions/metrics"
 import { Sidebar } from "@/components/shared/sidebar"
 import { MobileNav } from "@/components/shared/mobile-nav"
-import { db, ClassSession } from "@/lib/storage"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts"
+import {
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip,
+    ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend
+} from "recharts"
 import { Users, CalendarDays, TrendingUp, Percent, Award, ChevronLeft, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-const COLORS = ['#e11d48', '#2563eb', '#16a34a', '#d97706', '#9333ea', '#0891b2', '#4f46e5'];
+const COLORS = ["#e11d48", "#2563eb", "#16a34a", "#d97706", "#9333ea", "#0891b2", "#4f46e5", "#db2777"]
+
+type Stats = Awaited<ReturnType<typeof getMonthlyStats>>
+
+// Skeleton Card helper
+function SkeletonCard() {
+    return <div className="h-8 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+}
+
+function SkeletonChart() {
+    return <div className="h-[280px] bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+}
 
 export default function StatsPage() {
-    const [classes, setClasses] = useState<ClassSession[]>([])
+    const [stats, setStats] = useState<Stats | null>(null)
     const [loading, setLoading] = useState(true)
-    const [selectedDate, setSelectedDate] = useState(new Date()) // Month/Year for filtering
+    const [selectedDate, setSelectedDate] = useState(() => new Date())
 
-    useEffect(() => {
-        const loadStatsData = () => {
-            const data = db.getClasses()
-            setClasses([...data]) // New reference to trigger re-memoization
+    const loadStats = useCallback(async () => {
+        setLoading(true)
+        try {
+            const year = selectedDate.getFullYear()
+            const month = selectedDate.getMonth() + 1
+            const result = await getMonthlyStats(year, month)
+            setStats(result)
+        } catch (e) {
+            console.error("Error loading stats:", e)
+        } finally {
             setLoading(false)
         }
+    }, [selectedDate])
 
-        loadStatsData()
-        window.addEventListener('storage-update', loadStatsData)
-        return () => window.removeEventListener('storage-update', loadStatsData)
-    }, [])
+    useEffect(() => { loadStats() }, [loadStats])
 
-    // Filter for Selected Month (Immutable to timezone shifts)
-    const currentMonthClasses = useMemo(() => {
-        const yearMonth = `${selectedDate.getFullYear()}-${(selectedDate.getMonth() + 1).toString().padStart(2, '0')}`
-
-        return classes.filter(c => {
-            return c.date.startsWith(yearMonth) && c.status !== 'cancelled'
-        })
-    }, [classes, selectedDate])
-
-    const navigateMonth = (direction: 'prev' | 'next') => {
+    const navigateMonth = (direction: "prev" | "next") => {
         const newDate = new Date(selectedDate)
-        newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1))
+        newDate.setMonth(newDate.getMonth() + (direction === "next" ? 1 : -1))
         setSelectedDate(newDate)
     }
 
-    // 1. Instructor Metrics (Clases Impartidas)
-    const instructorData = useMemo(() => {
-        const counts: Record<string, number> = {}
-        currentMonthClasses.forEach(c => {
-            const name = c.instructorName || "Sin Instructor"
-            counts[name] = (counts[name] || 0) + 1
-        })
-        return Object.entries(counts)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
-    }, [currentMonthClasses])
+    const monthLabel = selectedDate.toLocaleDateString("es-ES", { month: "long", year: "numeric" })
 
-    // 2. Average Occupancy (Ocupación Promedio)
-    const occupancyData = useMemo(() => {
-        if (currentMonthClasses.length === 0) return 0
-
-        let totalCapacity = 0
-        let totalAttendees = 0
-
-        currentMonthClasses.forEach(c => {
-            totalCapacity += (c.maxCapacity || 0)
-            const bookedCount = (c.attendees || []).filter(a => a.status === 'booked').length
-            totalAttendees += bookedCount
-        })
-
-        return totalCapacity > 0 ? Math.round((totalAttendees / totalCapacity) * 100) : 0
-    }, [currentMonthClasses])
-
-    // 3. Popularity (Disciplines by # of Attendees)
-    const popularityData = useMemo(() => {
-        const counts: Record<string, number> = {}
-        currentMonthClasses.forEach(c => {
-            const bookedCount = (c.attendees || []).filter(a => a.status === 'booked').length
-            counts[c.type] = (counts[c.type] || 0) + bookedCount
-        })
-
-        return Object.entries(counts)
-            .map(([name, value]) => ({ name, value }))
-            .sort((a, b) => b.value - a.value)
-    }, [currentMonthClasses])
-
-    // 4. Student Attendance (Top 10 Students by attendance count)
-    const studentAttendanceData = useMemo(() => {
-        const counts: Record<string, number> = {}
-        currentMonthClasses.forEach(c => {
-            (c.attendees || []).forEach(a => {
-                // Only count 'standard' or 'courtesy' ? Prompt says "asiste". Usually any attended class.
-                // We use 'booked' status logic. If we had 'checked-in' we'd use that. 
-                // Using all booked attendees for now.
-                counts[a.studentName] = (counts[a.studentName] || 0) + 1
-            })
-        })
-
-        return Object.entries(counts)
-            .map(([name, clases]) => ({ name, clases }))
-            .sort((a, b) => b.clases - a.clases)
-            .slice(0, 10) // Top 10
-    }, [currentMonthClasses])
-
-    // KPIs
-    const totalClasses = currentMonthClasses.length
-    const totalAttendances = currentMonthClasses.reduce((acc, c) => acc + (c.attendees || []).filter(a => a.status === 'booked').length, 0)
-
-    if (loading) {
-        return <div className="flex h-screen items-center justify-center bg-slate-50 dark:bg-slate-900">Cargando...</div>
-    }
+    const kpis = [
+        {
+            label: "Clases Totales",
+            value: stats?.totalClasses,
+            sub: "sesiones del mes (sin canceladas)",
+            icon: CalendarDays,
+        },
+        {
+            label: "Asistencias Totales",
+            value: stats?.totalAttendances,
+            sub: "cupos ocupados en clases",
+            icon: Users,
+        },
+        {
+            label: "Ocupación Promedio",
+            value: stats ? `${stats.occupancyPct}%` : undefined,
+            sub: "de capacidad utilizada",
+            icon: Percent,
+        },
+        {
+            label: "Disciplina Top",
+            value: stats?.topDiscipline,
+            sub: "más reservas este mes",
+            icon: Award,
+        },
+    ]
 
     return (
         <div className="flex flex-col md:flex-row h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
             <Sidebar />
             <MobileNav />
             <div className="flex-1 flex flex-col h-full overflow-hidden min-w-0">
-                <header className="bg-white dark:bg-slate-800 border-b p-4 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                {/* Header */}
+                <header className="bg-white dark:bg-slate-800 border-b p-4 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
                     <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                         <TrendingUp className="h-6 w-6 text-primary" />
                         Reportes y Métricas
                     </h1>
 
-                    <div className="flex items-center justify-between gap-4 bg-slate-50 dark:bg-slate-900 border rounded-full px-4 py-2 shadow-sm w-full sm:w-auto">
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 rounded-full"
-                            onClick={() => navigateMonth('prev')}
-                        >
-                            <ChevronLeft className="h-5 w-5" />
+                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900 border rounded-full px-3 py-1.5 shadow-sm">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => navigateMonth("prev")}>
+                            <ChevronLeft className="h-4 w-4" />
                         </Button>
-                        <span className="text-xs sm:text-sm font-semibold capitalize min-w-[120px] sm:min-w-[140px] text-center">
-                            {selectedDate.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
-                        </span>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 rounded-full"
-                            onClick={() => navigateMonth('next')}
-                        >
-                            <ChevronRight className="h-5 w-5" />
+                        <span className="text-sm font-semibold capitalize min-w-[130px] text-center">{monthLabel}</span>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => navigateMonth("next")}>
+                            <ChevronRight className="h-4 w-4" />
                         </Button>
                     </div>
                 </header>
@@ -147,123 +107,182 @@ export default function StatsPage() {
                 <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
                     {/* KPI Cards */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        {kpis.map((kpi) => (
+                            <Card key={kpi.label}>
+                                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                                    <CardTitle className="text-sm font-medium">{kpi.label}</CardTitle>
+                                    <kpi.icon className="h-4 w-4 text-muted-foreground" />
+                                </CardHeader>
+                                <CardContent>
+                                    {loading ? (
+                                        <SkeletonCard />
+                                    ) : (
+                                        <>
+                                            <div className="text-2xl font-bold tabular-nums truncate">
+                                                {kpi.value ?? "—"}
+                                            </div>
+                                            <p className="text-xs text-muted-foreground mt-1">{kpi.sub}</p>
+                                        </>
+                                    )}
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+
+                    {/* Row 1: Clases por día + Instructor */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Clases por día del mes */}
                         <Card>
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Clases Totales</CardTitle>
-                                <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                            <CardHeader>
+                                <CardTitle>Clases por Día</CardTitle>
+                                <CardDescription>Distribución de sesiones a lo largo del mes</CardDescription>
                             </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">{totalClasses}</div>
-                                <p className="text-xs text-muted-foreground">Programadas este mes</p>
+                            <CardContent className="h-[280px]">
+                                {loading ? <SkeletonChart /> : (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={stats?.dailyData} margin={{ left: 0, right: 8 }}>
+                                            <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                            <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                                            <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={28} />
+                                            <RechartsTooltip
+                                                contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
+                                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                formatter={(v: any) => [`${v} clases`, "Sesiones"]}
+                                                labelFormatter={(l) => `Día ${l}`}
+                                            />
+                                            <Line
+                                                type="monotone"
+                                                dataKey="value"
+                                                name="Clases"
+                                                stroke="#f43f5e"
+                                                strokeWidth={2.5}
+                                                dot={{ r: 3, fill: "#f43f5e" }}
+                                                activeDot={{ r: 5 }}
+                                            />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                )}
                             </CardContent>
                         </Card>
+
+                        {/* Clases por Instructor */}
                         <Card>
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Asistencias Totales</CardTitle>
-                                <Users className="h-4 w-4 text-muted-foreground" />
+                            <CardHeader>
+                                <CardTitle>Clases por Instructora</CardTitle>
+                                <CardDescription>Sesiones impartidas este mes</CardDescription>
                             </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">{totalAttendances}</div>
-                                <p className="text-xs text-muted-foreground">Cupos ocupados</p>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Ocupación Promedio</CardTitle>
-                                <Percent className="h-4 w-4 text-muted-foreground" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold">{occupancyData}%</div>
-                                <p className="text-xs text-muted-foreground">De capacidad utilizada</p>
-                            </CardContent>
-                        </Card>
-                        <Card>
-                            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                                <CardTitle className="text-sm font-medium">Disciplina Top</CardTitle>
-                                <Award className="h-4 w-4 text-muted-foreground" />
-                            </CardHeader>
-                            <CardContent>
-                                <div className="text-2xl font-bold truncate">{popularityData[0]?.name || "N/A"}</div>
-                                <p className="text-xs text-muted-foreground">Más solicitada</p>
+                            <CardContent className="h-[280px]">
+                                {loading ? <SkeletonChart /> : (
+                                    stats?.instructorData.length === 0 ? (
+                                        <div className="h-full flex items-center justify-center text-sm text-slate-400">
+                                            Sin datos para este mes
+                                        </div>
+                                    ) : (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={stats?.instructorData} layout="vertical" margin={{ left: 10 }}>
+                                                <CartesianGrid strokeDasharray="3 3" horizontal={false} />
+                                                <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
+                                                <YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 11 }} />
+                                                <RechartsTooltip
+                                                    contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
+                                                    cursor={{ fill: "#f1f5f9" }}
+                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                    formatter={(v: any) => [`${v} clases`, "Clases"]}
+                                                />
+                                                <Bar dataKey="value" name="Clases" fill="#f43f5e" radius={[0, 4, 4, 0]} barSize={18} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    )
+                                )}
                             </CardContent>
                         </Card>
                     </div>
 
-                    {/* Charts Row 1 */}
+                    {/* Row 2: Popularidad disciplinas + Top alumnas */}
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <Card className="col-span-1">
-                            <CardHeader>
-                                <CardTitle>Clases por Instructor</CardTitle>
-                                <CardDescription>Cantidad de sesiones impartidas este mes</CardDescription>
-                            </CardHeader>
-                            <CardContent className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <BarChart data={instructorData} layout="vertical" margin={{ left: 20 }}>
-                                        <CartesianGrid strokeDasharray="3 3" horizontal={false} />
-                                        <XAxis type="number" allowDecimals={false} />
-                                        <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 12 }} />
-                                        <RechartsTooltip
-                                            contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                            cursor={{ fill: 'transparent' }}
-                                        />
-                                        <Bar dataKey="value" name="Clases" fill="#f43f5e" radius={[0, 4, 4, 0]} barSize={20} />
-                                    </BarChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
-
-                        <Card className="col-span-1">
+                        {/* Popularity pie */}
+                        <Card>
                             <CardHeader>
                                 <CardTitle>Popularidad de Disciplinas</CardTitle>
                                 <CardDescription>Basado en número total de reservas</CardDescription>
                             </CardHeader>
-                            <CardContent className="h-[300px]">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={popularityData}
-                                            cx="50%"
-                                            cy="50%"
-                                            labelLine={false}
-                                            outerRadius={100}
-                                            fill="#8884d8"
-                                            dataKey="value"
-                                            nameKey="name"
-                                            label={({ name, percent }) => `${name} ${((percent || 0) * 100).toFixed(0)}%`}
-                                        >
-                                            {popularityData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                            ))}
-                                        </Pie>
-                                        <RechartsTooltip />
-                                    </PieChart>
-                                </ResponsiveContainer>
+                            <CardContent className="h-[280px]">
+                                {loading ? <SkeletonChart /> : (
+                                    stats?.popularityData.length === 0 ? (
+                                        <div className="h-full flex items-center justify-center text-sm text-slate-400">
+                                            Sin datos para este mes
+                                        </div>
+                                    ) : (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <PieChart>
+                                                <Pie
+                                                    data={stats?.popularityData}
+                                                    cx="50%"
+                                                    cy="50%"
+                                                    labelLine={false}
+                                                    outerRadius={90}
+                                                    dataKey="value"
+                                                    nameKey="name"
+                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                    label={({ name, percent }: any) =>
+                                                        (percent ?? 0) > 0.05 ? `${name} ${Math.round((percent ?? 0) * 100)}%` : ""
+                                                    }
+                                                >
+                                                    {stats?.popularityData.map((_, index) => (
+                                                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                                    ))}
+                                                </Pie>
+                                                <RechartsTooltip
+                                                    contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
+                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                    formatter={(v: any) => [`${v} reservas`, ""]}
+                                                />
+                                                <Legend formatter={(value) => <span className="text-xs">{value}</span>} />
+                                            </PieChart>
+                                        </ResponsiveContainer>
+                                    )
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Top Alumnas */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Top Alumnas Asistentes</CardTitle>
+                                <CardDescription>Mayor participación en clases este mes</CardDescription>
+                            </CardHeader>
+                            <CardContent className="h-[280px]">
+                                {loading ? <SkeletonChart /> : (
+                                    stats?.topStudents.length === 0 ? (
+                                        <div className="h-full flex items-center justify-center text-sm text-slate-400">
+                                            Sin datos para este mes
+                                        </div>
+                                    ) : (
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart data={stats?.topStudents} margin={{ top: 8, right: 8, left: 0, bottom: 32 }}>
+                                                <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                                <XAxis
+                                                    dataKey="name"
+                                                    tick={{ fontSize: 10 }}
+                                                    interval={0}
+                                                    angle={-30}
+                                                    textAnchor="end"
+                                                />
+                                                <YAxis allowDecimals={false} tick={{ fontSize: 11 }} width={28} />
+                                                <RechartsTooltip
+                                                    cursor={{ fill: "#f1f5f9" }}
+                                                    contentStyle={{ borderRadius: "8px", border: "none", boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)" }}
+                                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                                    formatter={(v: any) => [`${v} clases`, "Asistencias"]}
+                                                />
+                                                <Bar dataKey="clases" name="Clases Asistidas" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={32} />
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    )
+                                )}
                             </CardContent>
                         </Card>
                     </div>
-
-                    {/* Charts Row 2: Student Attendance */}
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Top Alumnas Asistentes</CardTitle>
-                            <CardDescription>Alumnas con mayor participación este mes</CardDescription>
-                        </CardHeader>
-                        <CardContent className="h-[300px]">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={studentAttendanceData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={0} />
-                                    <YAxis allowDecimals={false} />
-                                    <RechartsTooltip
-                                        cursor={{ fill: '#f1f5f9' }}
-                                        contentStyle={{ borderRadius: '8px' }}
-                                    />
-                                    <Bar dataKey="clases" name="Clases Asistidas" fill="#8b5cf6" radius={[4, 4, 0, 0]} barSize={40} />
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </CardContent>
-                    </Card>
-
                 </div>
             </div>
         </div>

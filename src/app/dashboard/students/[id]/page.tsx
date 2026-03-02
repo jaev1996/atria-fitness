@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useTransition } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { db, Student, PaymentMethod, StudentStatus } from "@/lib/storage"
+import { getStudent, updateStudent, processStudentPayment, deleteStudentPlan, deleteHistoryEntry, addHistoryEntry } from "@/actions/students"
+import { User, StudentPlan, StudentPayment, StudentHistory, StudentStatus, PaymentMethod } from "@prisma/client"
 import { Sidebar } from "@/components/shared/sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -18,10 +19,17 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { DISCIPLINES } from "@/constants/config"
 
+type StudentWithDetails = User & {
+    plans: StudentPlan[];
+    paymentsMade: StudentPayment[];
+    history: StudentHistory[];
+}
+
 export default function StudentDetailsPage() {
     const params = useParams()
     const router = useRouter()
-    const [student, setStudent] = useState<Student | null>(null)
+    const [student, setStudent] = useState<StudentWithDetails | null>(null)
+    const [isPending, startTransition] = useTransition()
     const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false)
     const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
 
@@ -48,29 +56,42 @@ export default function StudentDetailsPage() {
         planName: "Pack 8 Clases",
         credits: 8,
         amount: "",
-        method: "Transferencia",
+        method: "TRANSFERENCIA",
         discipline: "Pole" // Standardized
     })
 
     // Edit Forms
-    const [editProfileForm, setEditProfileForm] = useState<Partial<Student>>({})
-    const [editMedicalForm, setEditMedicalForm] = useState<Partial<Student>>({})
+    const [editProfileForm, setEditProfileForm] = useState<Partial<User>>({})
+    const [editMedicalForm, setEditMedicalForm] = useState<Partial<User>>({})
 
     // Load student
     const loadStudent = useCallback(async () => {
         if (params.id) {
-            const s = db.getStudent(params.id as string)
-            if (s) {
-                setStudent(s)
-                setEditProfileForm({
-                    name: s.name, phone: s.phone, email: s.email, emergencyContact: s.emergencyContact, status: s.status
-                })
-                setEditMedicalForm({
-                    medicalInfo: s.medicalInfo, allergies: s.allergies, injuries: s.injuries, conditions: s.conditions, sportsInfo: s.sportsInfo
-                })
-            } else {
-                toast.error("Alumna no encontrada")
-                router.push("/dashboard/students")
+            try {
+                const s = await getStudent(params.id as string)
+                if (s) {
+                    const studentData = s as unknown as StudentWithDetails;
+                    setStudent(studentData)
+                    setEditProfileForm({
+                        name: studentData.name,
+                        phone: studentData.phone ?? "",
+                        email: studentData.email,
+                        emergencyContact: studentData.emergencyContact ?? "",
+                        status: studentData.status ?? "ACTIVE"
+                    })
+                    setEditMedicalForm({
+                        medicalInfo: studentData.medicalInfo ?? "",
+                        allergies: studentData.allergies ?? "",
+                        injuries: studentData.injuries ?? "",
+                        conditions: studentData.conditions ?? "",
+                        sportsInfo: studentData.sportsInfo ?? ""
+                    })
+                } else {
+                    toast.error("Alumna no encontrada")
+                    router.push("/dashboard/students")
+                }
+            } catch {
+                toast.error("Error al cargar alumna")
             }
         }
     }, [params.id, router])
@@ -82,93 +103,128 @@ export default function StudentDetailsPage() {
         return () => clearTimeout(timer)
     }, [loadStudent])
 
-    const handleUpdateProfile = () => {
+    const handleUpdateProfile = async () => {
         if (student) {
-            db.updateStudent(student.id, editProfileForm)
-            toast.success("Perfil actualizado")
-            setIsProfileDialogOpen(false)
-            loadStudent()
+            startTransition(async () => {
+                try {
+                    await updateStudent(student.id, editProfileForm)
+                    toast.success("Perfil actualizado")
+                    setIsProfileDialogOpen(false)
+                    loadStudent()
+                } catch {
+                    toast.error("Error al actualizar perfil")
+                }
+            })
         }
     }
 
-    const handleUpdateMedical = () => {
+    const handleUpdateMedical = async () => {
         if (student) {
-            db.updateStudent(student.id, editMedicalForm)
-            toast.success("Ficha médica actualizada")
-            setIsMedicalDialogOpen(false)
-            loadStudent()
+            startTransition(async () => {
+                try {
+                    await updateStudent(student.id, editMedicalForm)
+                    toast.success("Ficha médica actualizada")
+                    setIsMedicalDialogOpen(false)
+                    loadStudent()
+                } catch {
+                    toast.error("Error al actualizar ficha médica")
+                }
+            })
         }
     }
 
-    const handleAddHistory = () => {
+    const handleAddHistory = async () => {
         if (!newEntry.activity || !newEntry.cost) {
             toast.error("Actividad y costo son obligatorios")
             return
         }
 
         if (student) {
-            db.addHistoryEntry(student.id, {
-                activity: newEntry.activity,
-                notes: newEntry.notes,
-                cost: Number(newEntry.cost),
-                date: newEntry.date
+            startTransition(async () => {
+                try {
+                    await addHistoryEntry(student.id, {
+                        activity: newEntry.activity,
+                        notes: newEntry.notes,
+                        cost: Number(newEntry.cost)
+                    })
+                    toast.success("Historial actualizado")
+                    setIsHistoryDialogOpen(false)
+                    setNewEntry({
+                        activity: "",
+                        notes: "",
+                        cost: "",
+                        date: new Date().toISOString().split('T')[0]
+                    })
+                    loadStudent()
+                } catch {
+                    toast.error("Error al agregar historial")
+                }
             })
-            toast.success("Historial actualizado")
-            setIsHistoryDialogOpen(false)
-            setNewEntry({
-                activity: "",
-                notes: "",
-                cost: "",
-                date: new Date().toISOString().split('T')[0]
-            })
-            loadStudent()
         }
     }
 
-    const handleDeleteEntry = (entryId: string) => {
+    const handleDeleteEntry = async (entryId: string) => {
         if (confirm("¿Eliminar este registro?")) {
             if (student) {
-                db.deleteHistoryEntry(student.id, entryId)
-                toast.success("Registro eliminado")
-                loadStudent()
+                startTransition(async () => {
+                    try {
+                        await deleteHistoryEntry(entryId, student.id)
+                        toast.success("Registro eliminado")
+                        loadStudent()
+                    } catch {
+                        toast.error("Error al eliminar registro")
+                    }
+                })
             }
         }
     }
 
-    const handleProcessPayment = () => {
+    const handleProcessPayment = async () => {
         if (!newPayment.amount || !newPayment.planName) {
             toast.error("Datos incompletos")
             return
         }
         if (student) {
-            db.processPayment(
-                student.id,
-                Number(newPayment.amount),
-                newPayment.method,
-                newPayment.planName,
-                newPayment.credits,
-                newPayment.discipline
-            )
-            toast.success("Pago registrado y plan agregado")
-            setIsPaymentDialogOpen(false)
-            setNewPayment({
-                planName: "Pack 8 Clases",
-                credits: 8,
-                amount: "",
-                method: "Transferencia",
-                discipline: "Pole"
+            startTransition(async () => {
+                try {
+                    await processStudentPayment({
+                        studentId: student.id,
+                        amount: Number(newPayment.amount),
+                        method: newPayment.method,
+                        planName: newPayment.planName,
+                        credits: newPayment.credits,
+                        discipline: newPayment.discipline
+                    })
+                    toast.success("Pago registrado y plan agregado")
+                    setIsPaymentDialogOpen(false)
+                    setNewPayment({
+                        planName: "Pack 8 Clases",
+                        credits: 8,
+                        amount: "",
+                        method: "TRANSFERENCIA",
+                        discipline: "Pole"
+                    })
+                    loadStudent()
+                } catch {
+                    toast.error("Error al procesar pago")
+                }
             })
-            loadStudent()
         }
     }
 
 
-    const handleDeletePlan = (planId: string) => {
+    const handleDeletePlan = async (planId: string) => {
         if (confirm("¿Estás seguro de eliminar este plan? Esta acción no se puede deshacer.")) {
             if (student) {
-                db.deleteStudentPlan(student.id, planId)
-                toast.success("Plan eliminado correctamente")
-                loadStudent()
+                startTransition(async () => {
+                    try {
+                        await deleteStudentPlan(planId, student.id)
+                        toast.success("Plan eliminado correctamente")
+                        loadStudent()
+                    } catch {
+                        toast.error("Error al eliminar plan")
+                    }
+                })
             }
         }
     }
@@ -207,35 +263,37 @@ export default function StudentDetailsPage() {
                                         <div className="grid gap-4 py-4">
                                             <div className="grid gap-2">
                                                 <Label>Nombre Completo</Label>
-                                                <Input value={editProfileForm.name} onChange={e => setEditProfileForm({ ...editProfileForm, name: e.target.value })} />
+                                                <Input value={editProfileForm.name ?? ""} onChange={e => setEditProfileForm({ ...editProfileForm, name: e.target.value })} />
                                             </div>
                                             <div className="grid gap-2">
                                                 <Label>Teléfono</Label>
-                                                <Input value={editProfileForm.phone} onChange={e => setEditProfileForm({ ...editProfileForm, phone: e.target.value })} />
+                                                <Input value={editProfileForm.phone ?? ""} onChange={e => setEditProfileForm({ ...editProfileForm, phone: e.target.value })} />
                                             </div>
                                             <div className="grid gap-2">
                                                 <Label>Email</Label>
-                                                <Input value={editProfileForm.email} onChange={e => setEditProfileForm({ ...editProfileForm, email: e.target.value })} />
+                                                <Input value={editProfileForm.email ?? ""} onChange={e => setEditProfileForm({ ...editProfileForm, email: e.target.value })} />
                                             </div>
                                             <div className="grid gap-2">
                                                 <Label>Contacto Emergencia</Label>
-                                                <Input value={editProfileForm.emergencyContact} onChange={e => setEditProfileForm({ ...editProfileForm, emergencyContact: e.target.value })} />
+                                                <Input value={editProfileForm.emergencyContact ?? ""} onChange={e => setEditProfileForm({ ...editProfileForm, emergencyContact: e.target.value })} />
                                             </div>
                                             <div className="grid gap-2">
                                                 <Label>Estatus</Label>
-                                                <Select value={editProfileForm.status} onValueChange={(v: StudentStatus) => setEditProfileForm({ ...editProfileForm, status: v })}>
+                                                <Select value={editProfileForm.status ?? "ACTIVE"} onValueChange={(v: StudentStatus) => setEditProfileForm({ ...editProfileForm, status: v })}>
                                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="active">Activa</SelectItem>
-                                                        <SelectItem value="inactive">Inactiva</SelectItem>
-                                                        <SelectItem value="guest">Invitada</SelectItem>
+                                                        <SelectItem value="ACTIVE">Activa</SelectItem>
+                                                        <SelectItem value="INACTIVE">Inactiva</SelectItem>
+                                                        <SelectItem value="GUEST">Invitada</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
                                         </div>
                                         <DialogFooter>
                                             <Button variant="outline" onClick={() => setIsProfileDialogOpen(false)}>Cancelar</Button>
-                                            <Button onClick={handleUpdateProfile}>Guardar Cambios</Button>
+                                            <Button onClick={handleUpdateProfile} disabled={isPending}>
+                                                {isPending ? "Guardando..." : "Guardar Cambios"}
+                                            </Button>
                                         </DialogFooter>
                                     </DialogContent>
                                 </Dialog>
@@ -245,7 +303,7 @@ export default function StudentDetailsPage() {
                                     <Label className="text-slate-500">Nombre</Label>
                                     <div className="font-medium text-lg flex items-center gap-2">
                                         {student.name}
-                                        {student.status === 'guest' && <span className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-full">Invitada</span>}
+                                        {student.status === 'GUEST' && <span className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-full">Invitada</span>}
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
@@ -335,17 +393,19 @@ export default function StudentDetailsPage() {
                                                 <Select value={newPayment.method} onValueChange={(v: PaymentMethod) => setNewPayment({ ...newPayment, method: v })}>
                                                     <SelectTrigger><SelectValue /></SelectTrigger>
                                                     <SelectContent>
-                                                        <SelectItem value="Efectivo">Efectivo</SelectItem>
-                                                        <SelectItem value="Transferencia">Transferencia</SelectItem>
-                                                        <SelectItem value="Tarjeta">Tarjeta</SelectItem>
-                                                        <SelectItem value="Otro">Otro</SelectItem>
+                                                        <SelectItem value="EFECTIVO">Efectivo</SelectItem>
+                                                        <SelectItem value="TRANSFERENCIA">Transferencia</SelectItem>
+                                                        <SelectItem value="TARJETA">Tarjeta</SelectItem>
+                                                        <SelectItem value="OTRO">Otro</SelectItem>
                                                     </SelectContent>
                                                 </Select>
                                             </div>
                                         </div>
                                         <DialogFooter>
                                             <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>Cancelar</Button>
-                                            <Button onClick={handleProcessPayment}>Confirmar</Button>
+                                            <Button onClick={handleProcessPayment} disabled={isPending}>
+                                                {isPending ? "Confirmando..." : "Confirmar"}
+                                            </Button>
                                         </DialogFooter>
                                     </DialogContent>
                                 </Dialog>
@@ -355,18 +415,18 @@ export default function StudentDetailsPage() {
                                     student.plans.map((plan, idx) => (
                                         <div key={idx} className="p-3 bg-white dark:bg-slate-800 rounded border shadow-sm">
                                             <div className="flex justify-between items-center mb-2">
-                                                <span className="font-semibold text-sm">{plan.nombreOriginal}</span>
+                                                <span className="font-semibold text-sm">{plan.originalName}</span>
                                                 <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase",
-                                                    plan.activo ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
+                                                    plan.isActive ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
                                                 )}>
-                                                    {plan.disciplina}
+                                                    {plan.discipline}
                                                 </span>
                                             </div>
                                             <div className="flex justify-between text-xs text-slate-500 mb-1">
                                                 <span>Créditos Restantes</span>
                                                 <div className="flex items-center gap-2">
-                                                    <span className={cn("font-bold", plan.creditos < 2 ? "text-red-500" : "text-slate-700")}>
-                                                        {plan.creditos > 900 ? "∞" : plan.creditos}
+                                                    <span className={cn("font-bold", plan.credits < 2 ? "text-red-500" : "text-slate-700")}>
+                                                        {plan.credits > 900 ? "∞" : plan.credits}
                                                     </span>
                                                     <Button variant="ghost" size="icon" className="h-4 w-4 text-destructive hover:bg-destructive/10" onClick={() => handleDeletePlan(plan.id)}>
                                                         <Trash2 className="h-3 w-3" />
@@ -389,15 +449,15 @@ export default function StudentDetailsPage() {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
-                                <div className="space-y-4 max-h-[200px] overflow-y-auto">
-                                    {!student.payments || student.payments.length === 0 ? (
+                                <div>
+                                    {!student.paymentsMade || student.paymentsMade.length === 0 ? (
                                         <p className="text-xs text-slate-400 text-center py-4">Sin pagos registrados</p>
                                     ) : (
-                                        student.payments.slice().reverse().map(p => (
+                                        student.paymentsMade.slice().reverse().map(p => (
                                             <div key={p.id} className="flex justify-between items-center text-sm border-b pb-2 last:border-0 last:pb-0">
                                                 <div>
                                                     <div className="font-medium">{p.concept}</div>
-                                                    <div className="text-xs text-slate-500">{p.date} • {p.method}</div>
+                                                    <div className="text-xs text-slate-500">{new Date(p.date).toLocaleDateString()} • {p.method}</div>
                                                 </div>
                                                 <div className="font-bold text-green-600">${p.amount}</div>
                                             </div>
@@ -429,28 +489,30 @@ export default function StudentDetailsPage() {
                                         <div className="grid grid-cols-2 gap-4 py-4">
                                             <div className="grid gap-2">
                                                 <Label>Alergias</Label>
-                                                <Input value={editMedicalForm.allergies} onChange={e => setEditMedicalForm({ ...editMedicalForm, allergies: e.target.value })} />
+                                                <Input value={editMedicalForm.allergies ?? ""} onChange={e => setEditMedicalForm({ ...editMedicalForm, allergies: e.target.value })} />
                                             </div>
                                             <div className="grid gap-2">
                                                 <Label>Condiciones</Label>
-                                                <Input value={editMedicalForm.conditions} onChange={e => setEditMedicalForm({ ...editMedicalForm, conditions: e.target.value })} />
+                                                <Input value={editMedicalForm.conditions ?? ""} onChange={e => setEditMedicalForm({ ...editMedicalForm, conditions: e.target.value })} />
                                             </div>
                                             <div className="grid gap-2 col-span-2">
                                                 <Label>Lesiones</Label>
-                                                <Input value={editMedicalForm.injuries} onChange={e => setEditMedicalForm({ ...editMedicalForm, injuries: e.target.value })} />
+                                                <Input value={editMedicalForm.injuries ?? ""} onChange={e => setEditMedicalForm({ ...editMedicalForm, injuries: e.target.value })} />
                                             </div>
                                             <div className="grid gap-2 col-span-2">
                                                 <Label>Observaciones Médicas</Label>
-                                                <Textarea value={editMedicalForm.medicalInfo} onChange={e => setEditMedicalForm({ ...editMedicalForm, medicalInfo: e.target.value })} />
+                                                <Textarea value={editMedicalForm.medicalInfo ?? ""} onChange={e => setEditMedicalForm({ ...editMedicalForm, medicalInfo: e.target.value })} />
                                             </div>
                                             <div className="grid gap-2 col-span-2">
                                                 <Label>Información Deportiva</Label>
-                                                <Input value={editMedicalForm.sportsInfo} onChange={e => setEditMedicalForm({ ...editMedicalForm, sportsInfo: e.target.value })} />
+                                                <Input value={editMedicalForm.sportsInfo ?? ""} onChange={e => setEditMedicalForm({ ...editMedicalForm, sportsInfo: e.target.value })} />
                                             </div>
                                         </div>
                                         <DialogFooter>
                                             <Button variant="outline" onClick={() => setIsMedicalDialogOpen(false)}>Cancelar</Button>
-                                            <Button onClick={handleUpdateMedical}>Guardar Cambios</Button>
+                                            <Button onClick={handleUpdateMedical} disabled={isPending}>
+                                                {isPending ? "Guardando..." : "Guardar Cambios"}
+                                            </Button>
                                         </DialogFooter>
                                     </DialogContent>
                                 </Dialog>
@@ -545,7 +607,9 @@ export default function StudentDetailsPage() {
                                         </div>
                                         <DialogFooter>
                                             <Button variant="outline" onClick={() => setIsHistoryDialogOpen(false)}>Cancelar</Button>
-                                            <Button onClick={handleAddHistory} className="bg-primary text-primary-foreground hover:bg-primary/90">Guardar</Button>
+                                            <Button onClick={handleAddHistory} disabled={isPending} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                                                {isPending ? "Guardando..." : "Guardar"}
+                                            </Button>
                                         </DialogFooter>
                                     </DialogContent>
                                 </Dialog>
@@ -570,7 +634,7 @@ export default function StudentDetailsPage() {
                                         ) : (
                                             student.history.slice().reverse().map((entry) => (
                                                 <TableRow key={entry.id}>
-                                                    <TableCell className="font-medium whitespace-nowrap">{entry.date}</TableCell>
+                                                    <TableCell className="font-medium whitespace-nowrap">{new Date(entry.date).toLocaleDateString()}</TableCell>
                                                     <TableCell>
                                                         <div>{entry.activity}</div>
                                                         {entry.notes && <div className="text-xs text-slate-400">{entry.notes}</div>}

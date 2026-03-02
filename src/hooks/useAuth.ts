@@ -1,29 +1,30 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { User } from '@supabase/supabase-js';
 
-export type UserRole = 'admin' | 'instructor';
+export type UserRole = 'admin' | 'instructor' | 'student';
 
 export function useAuth(requireAuth = true) {
     const router = useRouter();
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [user, setUser] = useState<User | null>(null);
     const [role, setRole] = useState<UserRole | null>(null);
-    const [userId, setUserId] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
+    const supabase = createClient();
 
     useEffect(() => {
-        const checkAuth = () => {
-            const authStatus = localStorage.getItem('atria_auth');
-            const userRole = localStorage.getItem('atria_role') as UserRole;
-            const uId = localStorage.getItem('atria_user_id');
+        const getUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
 
-            if (authStatus === 'true') {
-                setIsAuthenticated(true);
+            if (user) {
+                setUser(user);
+                // Get role from app_metadata or user_metadata
+                const rawRole = user.app_metadata?.role || user.user_metadata?.role;
+                const userRole = (rawRole ? String(rawRole).toLowerCase() : null) as UserRole;
                 setRole(userRole || 'admin');
-                setUserId(uId);
             } else {
-                setIsAuthenticated(false);
+                setUser(null);
                 setRole(null);
-                setUserId(null);
                 if (requireAuth) {
                     router.push('/login');
                 }
@@ -31,40 +32,42 @@ export function useAuth(requireAuth = true) {
             setLoading(false);
         };
 
-        // Use a timer to avoid synchronous state updates during initial render if needed,
-        // but since we want to avoid extra renders, we just run it once.
-        checkAuth();
-    }, [router, requireAuth]);
+        getUser();
 
-    const login = (userRole: UserRole = 'admin', uId: string | null = null) => {
-        localStorage.setItem('atria_auth', 'true');
-        localStorage.setItem('atria_role', userRole);
-        if (uId) {
-            localStorage.setItem('atria_user_id', uId);
-        } else {
-            localStorage.removeItem('atria_user_id');
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+            if (session?.user) {
+                setUser(session.user);
+                const rawRole = session.user.app_metadata?.role || session.user.user_metadata?.role;
+                const userRole = (rawRole ? String(rawRole).toLowerCase() : null) as UserRole;
+                setRole(userRole || 'admin');
+            } else {
+                setUser(null);
+                setRole(null);
+                if (requireAuth) {
+                    router.push('/login');
+                }
+            }
+            setLoading(false);
+        });
+
+        return () => subscription.unsubscribe();
+    }, [router, requireAuth, supabase.auth]);
+
+    const logout = async () => {
+        try {
+            await supabase.auth.signOut();
+        } catch (error) {
+            console.error("Logout error:", error);
         }
-
-        setIsAuthenticated(true);
-        setRole(userRole);
-        setUserId(uId);
-
-        if (userRole === 'instructor') {
-            router.push('/dashboard');
-        } else {
-            router.push('/dashboard');
-        }
+        window.location.href = '/login';
     };
 
-    const logout = () => {
-        localStorage.removeItem('atria_auth');
-        localStorage.removeItem('atria_role');
-        localStorage.removeItem('atria_user_id');
-        setIsAuthenticated(false);
-        setRole(null);
-        setUserId(null);
-        router.push('/login');
+    return {
+        isAuthenticated: !!user,
+        user,
+        role,
+        userId: user?.id || null,
+        loading,
+        logout
     };
-
-    return { isAuthenticated, role, userId, loading, login, logout };
 }

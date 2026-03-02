@@ -17,7 +17,10 @@ export function Sidebar() {
 
     const filteredItems = menuItems.filter(item => {
         if (role === 'instructor') {
-            return item.href === '/dashboard' || item.href === '/dashboard/calendar' || item.href === '/dashboard/profile';
+            return item.href === '/dashboard' ||
+                item.href === '/dashboard/calendar' ||
+                item.href === '/dashboard/profile' ||
+                item.href === '/dashboard/students';
         }
         if (role === 'admin') {
             return true;

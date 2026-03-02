@@ -5,37 +5,40 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dumbbell } from "lucide-react"
+import { Dumbbell, Loader2 } from "lucide-react"
 import { toast } from "sonner"
-import { useAuth } from "@/hooks/useAuth"
-import { db } from "@/lib/storage"
+import { useRouter } from "next/navigation"
+import { login } from "@/actions/auth"
 
 export default function LoginPage() {
-    const { login } = useAuth(false)
+    const router = useRouter()
+    const [isLoading, setIsLoading] = useState(false)
     const [email, setEmail] = useState("")
     const [password, setPassword] = useState("")
 
-    const handleLogin = (e: React.FormEvent) => {
+    const handleLogin = async (e: React.FormEvent) => {
         e.preventDefault()
+        setIsLoading(true)
 
-        // Admin Login
-        if (email === "master@atriafit.com" && password === "12345678") {
-            login('admin')
-            toast.success("Inicio de sesión exitoso (Admin)")
-            return
+        const formData = new FormData()
+        formData.append('email', email)
+        formData.append('password', password)
+
+        try {
+            const result = await login(formData)
+            if (result?.error) {
+                toast.error(result.error)
+                setIsLoading(false)
+            } else if (result?.success) {
+                toast.success("Inicio de sesión exitoso")
+                // Give the toast time to be seen before redirect
+                router.push("/dashboard")
+                router.refresh()
+            }
+        } catch {
+            toast.error("Ocurrió un error inesperado")
+            setIsLoading(false)
         }
-
-        // Instructor Login
-        const instructors = db.getInstructors()
-        const foundInstructor = instructors.find(i => i.email === email)
-
-        if (foundInstructor && password === "atria2026") {
-            login('instructor', foundInstructor.id)
-            toast.success(`Bienvenida, ${foundInstructor.name}`)
-            return
-        }
-
-        toast.error("Credenciales inválidas.")
     }
 
     return (
@@ -57,10 +60,11 @@ export default function LoginPage() {
                             <Input
                                 id="email"
                                 type="email"
-                                placeholder="master@atriafit.com"
+                                placeholder="tu@correo.com"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
+                                disabled={isLoading}
                             />
                         </div>
                         <div className="grid gap-2">
@@ -71,12 +75,24 @@ export default function LoginPage() {
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
+                                disabled={isLoading}
                             />
                         </div>
                     </CardContent>
                     <CardFooter>
-                        <Button type="submit" className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
-                            Iniciar Sesión
+                        <Button
+                            type="submit"
+                            className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                            disabled={isLoading}
+                        >
+                            {isLoading ? (
+                                <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Iniciando sesión...
+                                </>
+                            ) : (
+                                "Iniciar Sesión"
+                            )}
                         </Button>
                     </CardFooter>
                 </form>

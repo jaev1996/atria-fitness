@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { db, Instructor } from "@/lib/storage"
 import { Sidebar } from "@/components/shared/sidebar"
 import { MobileNav } from "@/components/shared/mobile-nav"
 import { Button } from "@/components/ui/button"
@@ -12,20 +11,23 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Edit, Search, User, Eye, Trash2, Cross } from "lucide-react"
+import { Plus, Edit, Search, User, Eye, Trash2, Cross, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { DISCIPLINES } from "@/constants/config"
 import { useFilter } from "@/hooks/useFilter"
 import { PaginationControl } from "@/components/shared/pagination-control"
 import { EmptyState } from "@/components/shared/empty-state"
+import { getInstructors, addInstructor, updateInstructor, deleteInstructor } from "@/actions/instructors"
+import { User as PrismaUser } from "@prisma/client"
 
 import { Suspense } from "react"
 
 function InstructorsContent() {
-    const [instructors, setInstructors] = useState<Instructor[]>([])
-    // Removed old states in favor of hook
+    const [instructors, setInstructors] = useState<PrismaUser[]>([])
     const [isDialogOpen, setIsDialogOpen] = useState(false)
+    const [isSaving, setIsSaving] = useState(false)
+    const [isLoading, setIsLoading] = useState(true)
     const [editingId, setEditingId] = useState<string | null>(null)
 
     const [formData, setFormData] = useState<{
@@ -42,19 +44,23 @@ function InstructorsContent() {
         specialties: []
     })
 
-    const loadInstructors = () => {
-        setInstructors(db.getInstructors())
+    const loadInstructors = async () => {
+        try {
+            const data = await getInstructors()
+            setInstructors(data as PrismaUser[])
+        } catch {
+            toast.error("Error al cargar instructores")
+        } finally {
+            setIsLoading(false)
+        }
     }
 
     useEffect(() => {
-        const timer = setTimeout(() => {
-            loadInstructors()
-        }, 0)
-        return () => clearTimeout(timer)
+        loadInstructors()
     }, [])
 
     // --- customFilter logic for advanced filtering ---
-    const customFilter = (item: Instructor, filters: Record<string, string>) => {
+    const customFilter = (item: PrismaUser, filters: Record<string, string>) => {
         // 1. Specialty Filter
         if (filters.specialty && filters.specialty !== 'all') {
             if (!item.specialties?.includes(filters.specialty)) return false;
@@ -76,14 +82,14 @@ function InstructorsContent() {
         setFilter,
         clearFilters,
         filters
-    } = useFilter<Instructor>({
+    } = useFilter<PrismaUser>({
         data: instructors,
-        searchKeys: ['name', 'email', 'bio'],
+        searchKeys: ['name', 'email', 'bio'] as (keyof PrismaUser)[],
         initialItemsPerPage: 10,
         customFilter
     });
 
-    const handleOpenDialog = (instructor?: Instructor) => {
+    const handleOpenDialog = (instructor?: PrismaUser) => {
         if (instructor) {
             setEditingId(instructor.id)
             setFormData({
@@ -107,9 +113,13 @@ function InstructorsContent() {
     }
 
 
-    const handleSave = () => {
+    const handleSave = async () => {
         if (!formData.name) {
             toast.error("El nombre es obligatorio")
+            return
+        }
+        if (!formData.email) {
+            toast.error("El correo electrónico es obligatorio")
             return
         }
         if (formData.specialties.length === 0) {
@@ -117,22 +127,33 @@ function InstructorsContent() {
             return
         }
 
-        if (editingId) {
-            db.updateInstructor(editingId, formData)
-            toast.success("Instructor actualizado")
-        } else {
-            db.addInstructor(formData)
-            toast.success("Instructor creado")
+        setIsSaving(true)
+        try {
+            if (editingId) {
+                await updateInstructor(editingId, formData)
+                toast.success("Instructor actualizado")
+            } else {
+                await addInstructor(formData)
+                toast.success("Instructor creado y cuenta de acceso configurada")
+            }
+            setIsDialogOpen(false)
+            loadInstructors()
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Ocurrió un error al guardar")
+        } finally {
+            setIsSaving(false)
         }
-        setIsDialogOpen(false)
-        loadInstructors()
     }
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         if (confirm("¿Estás seguro de eliminar este instructor?")) {
-            db.deleteInstructor(id)
-            toast.success("Instructor eliminado")
-            loadInstructors()
+            try {
+                await deleteInstructor(id)
+                toast.success("Instructor eliminado")
+                loadInstructors()
+            } catch {
+                toast.error("Error al eliminar")
+            }
         }
     }
 
@@ -208,7 +229,40 @@ function InstructorsContent() {
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {paginatedInstructors.length === 0 ? (
+                                {isLoading ? (
+                                    Array.from({ length: 5 }).map((_, i) => (
+                                        <TableRow key={i}>
+                                            <TableCell>
+                                                <div className="flex items-center gap-2">
+                                                    <div className="h-9 w-9 rounded-full bg-slate-200 dark:bg-slate-700 animate-pulse shrink-0" />
+                                                    <div className="space-y-1.5">
+                                                        <div className="h-3.5 w-28 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                                                        <div className="h-3 w-36 bg-slate-100 dark:bg-slate-600 rounded animate-pulse" />
+                                                    </div>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex gap-1.5">
+                                                    <div className="h-5 w-16 bg-slate-200 dark:bg-slate-700 rounded-full animate-pulse" />
+                                                    <div className="h-5 w-14 bg-slate-100 dark:bg-slate-600 rounded-full animate-pulse" />
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="space-y-1.5">
+                                                    <div className="h-3.5 w-32 bg-slate-200 dark:bg-slate-700 rounded animate-pulse" />
+                                                    <div className="h-3 w-20 bg-slate-100 dark:bg-slate-600 rounded animate-pulse" />
+                                                </div>
+                                            </TableCell>
+                                            <TableCell className="text-right">
+                                                <div className="flex justify-end gap-2">
+                                                    <div className="h-8 w-8 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
+                                                    <div className="h-8 w-8 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
+                                                    <div className="h-8 w-8 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" />
+                                                </div>
+                                            </TableCell>
+                                        </TableRow>
+                                    ))
+                                ) : paginatedInstructors.length === 0 ? (
                                     <TableRow>
                                         <TableCell colSpan={4} className="p-0">
                                             <EmptyState onAction={clearFilters} />
@@ -228,7 +282,7 @@ function InstructorsContent() {
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex flex-wrap gap-1">
-                                                    {instructor.specialties.map(s => (
+                                                    {instructor.specialties?.map((s: string) => (
                                                         <span key={s} className="px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
                                                             {s}
                                                         </span>
@@ -283,16 +337,32 @@ function InstructorsContent() {
                         <div className="grid gap-4 py-4">
                             <div className="grid gap-2">
                                 <Label>Nombre Completo *</Label>
-                                <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Ej. Valentina" />
+                                <Input
+                                    value={formData.name}
+                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                    placeholder="Ej. Valentina"
+                                    disabled={isSaving}
+                                />
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
-                                    <Label>Email</Label>
-                                    <Input value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} placeholder="correo@ejemplo.com" />
+                                    <Label>Email *</Label>
+                                    <Input
+                                        type="email"
+                                        value={formData.email}
+                                        onChange={e => setFormData({ ...formData, email: e.target.value })}
+                                        placeholder="correo@ejemplo.com"
+                                        disabled={isSaving}
+                                    />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label>Teléfono</Label>
-                                    <Input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} placeholder="555-0000" />
+                                    <Input
+                                        value={formData.phone}
+                                        onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                                        placeholder="555-0000"
+                                        disabled={isSaving}
+                                    />
                                 </div>
                             </div>
                             <div className="grid gap-2">
@@ -321,8 +391,19 @@ function InstructorsContent() {
                             </div>
                         </div>
                         <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-                            <Button onClick={handleSave}>Guardar</Button>
+                            <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={isSaving}>
+                                Cancelar
+                            </Button>
+                            <Button onClick={handleSave} disabled={isSaving}>
+                                {isSaving ? (
+                                    <>
+                                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                        Guardando...
+                                    </>
+                                ) : (
+                                    "Guardar"
+                                )}
+                            </Button>
                         </DialogFooter>
                     </DialogContent>
                 </Dialog>
