@@ -22,7 +22,7 @@ El corazón de la operativa diaria. Aquí programas sesiones y controlas quién 
 7. Si necesitas cancelar una clase, puedes hacerlo haciendo clic en la clase y cambiando el estado a "Cancelada" o directamente a travez del boton "Eliminar clase" (se eliminara la clase del calendario).
 
 
-![Formulario Nueva Clase](/public/docs/nueva-clase.png)
+![Formulario Nueva Clase](public/docs/nueva-clase.png)
 
 ### Inscribir Alumnos en una Clase (Reservas)
 1. En el Calendario, haz clic sobre una clase ya programada.
@@ -42,8 +42,8 @@ Mantén el control total sobre la información de tus clientes, sus pagos y sus 
 4. Es de vital importancia completar la **Información Médica**: Alergias, lesiones, condiciones especiales y contacto de emergencia.
 5. Guarda el perfil para activarlo en el sistema.
 
-![Lista de Alumnas](/public/docs/alumnas-list.png)
-![Formulario Nueva Alumna](/public/docs/nueva-alumna.png)
+![Lista de Alumnas](public/docs/alumnas-list.png)
+![Formulario Nueva Alumna](public/docs/nueva-alumna.png)
 
 
 ### Venta de Planes / Paquetes
@@ -52,8 +52,8 @@ Para que un alumno pueda reservar clases, necesita créditos.
 2. Busca la seccion de **Planes**, haz clic en **"Nuevo Plan"**.
 3. Selecciona la disciplina, la cantidad de clases (créditos) compradas.
 
-![Lista de Planes](/public/docs/planes-list.png)
-![Formulario Nuevo Plan](/public/docs/nuevo-plan.png)
+![Lista de Planes](public/docs/planes-list.png)
+![Formulario Nuevo Plan](public/docs/nuevo-plan.png)
 
 ## 🧘‍♂️ 3. Gestión de Instructores
 
@@ -74,7 +74,7 @@ Administra el personal, sus clases y procesa sus pagos de forma organizada.
    - **Biografía:** Pequeña descripción opcional del perfil del instructor.
 3. Al guardar los cambios, el instructor es registrado y el sistema lo habilita para poder agendarse en las distintas disciplinas según sus especialidades.
 
-![Formulario Nuevo Instructor](/public/docs/nuevo-instructor.png)
+![Formulario Nuevo Instructor](public/docs/nuevo-instructor.png)
 
 ### Liquidación y Pagos
 El sistema facilita calcular cuánto se le debe pagar a un instructor por un periodo de tiempo.
@@ -82,7 +82,7 @@ El sistema facilita calcular cuánto se le debe pagar a un instructor por un per
 2. Al momento de generar un nuevo pago, el sistema permitirá seleccionar un **Rango de Fechas** (ej. "Del 1 al 15 del mes").
 3. La plataforma calculará automáticamente las clases impartidas en ese periodo. Al aprobar, se registrará el pago efectuado.
 
-![Liquidación de Instructores](/public/docs/liquidacion-instructor.png)
+![Liquidación de Instructores](public/docs/liquidacion-instructor.png)
 
 ---
 

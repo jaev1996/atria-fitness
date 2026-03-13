@@ -4,6 +4,7 @@ import prisma from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { ClassSession, Prisma } from "@prisma/client"
 import { ensureRole } from "@/lib/auth-utils"
+import { AddClassSchema, EnrollStudentSchema, RemoveAttendeeSchema } from "@/lib/schemas"
 
 export async function getClasses(startDateStr?: string, endDateStr?: string, instructorId?: string) {
     const where: Prisma.ClassSessionWhereInput = {}
@@ -40,19 +41,20 @@ export async function addClass(data: {
     isPrivate?: boolean
 }) {
     await ensureRole(['admin'])
+    const parsed = AddClassSchema.parse(data)
     // Use a robust UTC midnight constructor: "YYYY-MM-DD" -> "YYYY-MM-DDT00:00:00.000Z"
-    const classDate = new Date(`${data.date}T00:00:00.000Z`)
+    const classDate = new Date(`${parsed.date}T00:00:00.000Z`)
 
-    const [h, m] = data.startTime.split(':').map(Number)
+    const [h, m] = parsed.startTime.split(':').map(Number)
     const endH = h + 1
     const endTime = `${endH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
 
     // Collision Check: Instructor
     const instructorCollision = await prisma.classSession.findFirst({
         where: {
-            instructorId: data.instructorId,
+            instructorId: parsed.instructorId,
             date: classDate,
-            startTime: data.startTime,
+            startTime: parsed.startTime,
             status: { not: 'CANCELLED' }
         }
     })
@@ -61,9 +63,9 @@ export async function addClass(data: {
     // Collision Check: Room
     const roomCollision = await prisma.classSession.findFirst({
         where: {
-            room: data.room,
+            room: parsed.room,
             date: classDate,
-            startTime: data.startTime,
+            startTime: parsed.startTime,
             status: { not: 'CANCELLED' }
         }
     })
@@ -71,7 +73,7 @@ export async function addClass(data: {
 
     const newClass = await prisma.classSession.create({
         data: {
-            ...data,
+            ...parsed,
             date: classDate,
             endTime,
             status: 'SCHEDULED'
@@ -205,6 +207,7 @@ export async function deleteClass(id: string) {
 // Enrollment
 export async function enrollStudent(classId: string, studentId: string, type: 'STANDARD' | 'COURTESY' = 'STANDARD') {
     const user = await ensureRole(['admin'])
+    EnrollStudentSchema.parse({ classId, studentId, type })
 
     const classData = await prisma.classSession.findUnique({
         where: { id: classId },
@@ -235,6 +238,7 @@ export async function enrollStudent(classId: string, studentId: string, type: 'S
 
 export async function removeAttendee(classId: string, studentId: string) {
     const user = await ensureRole(['admin'])
+    RemoveAttendeeSchema.parse({ classId, studentId })
 
     const classData = await prisma.classSession.findUnique({
         where: { id: classId }

@@ -1,0 +1,75 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - generic [ref=e4]:
+        - img [ref=e6]
+        - generic [ref=e12]: Atria Fitness
+      - generic [ref=e13]:
+        - heading "Sistema de Gestión Interna." [level=2] [ref=e14]:
+          - text: Sistema de
+          - generic [ref=e15]: Gestión Interna.
+        - paragraph [ref=e16]: Plataforma de administración operativa exclusiva para el personal de Atria Fitness. Acceso restringido.
+        - generic [ref=e17]:
+          - generic [ref=e18]: Registro y seguimiento de alumnas
+          - generic [ref=e20]: Gestión de clases e instructores
+          - generic [ref=e22]: Liquidaciones y comprobantes de pago
+      - paragraph [ref=e24]:
+        - text: © 2026 Atria Fitness. Todos los derechos reservados.
+        - link "Política de Privacidad" [ref=e25] [cursor=pointer]:
+          - /url: /privacy
+    - generic [ref=e26]:
+      - generic [ref=e27]:
+        - heading "Acceso al sistema" [level=1] [ref=e28]
+        - paragraph [ref=e29]: Ingresa tus credenciales para continuar
+      - generic [ref=e30]:
+        - generic [ref=e31]:
+          - generic [ref=e32]: Correo Electrónico
+          - generic [ref=e33]:
+            - img [ref=e34]
+            - textbox "Correo Electrónico" [ref=e37]:
+              - /placeholder: tu@correo.com
+        - generic [ref=e38]:
+          - generic [ref=e39]: Contraseña
+          - generic [ref=e40]:
+            - img [ref=e41]
+            - textbox "Contraseña" [ref=e44]:
+              - /placeholder: ••••••••
+        - button "Iniciar Sesión" [ref=e45]:
+          - text: Iniciar Sesión
+          - img [ref=e46]
+      - generic [ref=e48]:
+        - img [ref=e49]
+        - paragraph [ref=e52]:
+          - text: Uso exclusivo para personal autorizado de Atria Fitness.
+          - link "Política de Privacidad" [ref=e53] [cursor=pointer]:
+            - /url: /privacy
+  - generic [ref=e55]:
+    - generic [ref=e56]:
+      - generic [ref=e57]:
+        - img [ref=e59]
+        - generic [ref=e61]:
+          - heading "Control de Cookies" [level=3] [ref=e62]
+          - paragraph [ref=e63]: Privacidad garantizada
+      - button [ref=e64]:
+        - img [ref=e65]
+    - generic [ref=e68]:
+      - paragraph [ref=e69]: Utilizamos cookies para optimizar tu experiencia, manejar sesiones seguras y analizar el uso de nuestra plataforma fitness.
+      - button "Ver detalles técnicos" [ref=e70]:
+        - text: Ver detalles técnicos
+        - img [ref=e72]
+    - generic [ref=e74]:
+      - button "Aceptar todas" [ref=e75]
+      - button "Solo necesarias" [ref=e76]
+    - generic [ref=e77]:
+      - text: Respetamos tu privacidad. Consulta nuestra
+      - link "Política de Datos" [ref=e78] [cursor=pointer]:
+        - /url: /privacy
+      - text: .
+  - region "Notifications alt+T"
+  - button "Open Next.js Dev Tools" [ref=e84] [cursor=pointer]:
+    - img [ref=e85]
+  - alert [ref=e88]
+```

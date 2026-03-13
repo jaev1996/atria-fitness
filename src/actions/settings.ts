@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { DISCIPLINES, ROOMS, Tier } from "@/constants/config"
 import { Prisma } from "@prisma/client"
 import { ensureRole } from "@/lib/auth-utils"
+import { UpdateDisciplineRateSchema, UpdateRoomDisciplinesSchema } from "@/lib/schemas"
 
 // ── Default rates used when no settings exist in DB ───────────────────────────
 const DEFAULT_DISCIPLINE_RATES: Record<string, { privateRate: number; rates: Tier[] }> = Object.fromEntries(
@@ -68,6 +69,7 @@ export async function getSettings() {
 
 export async function updateDisciplineRate(discipline: string, data: { privateRate: number; rates: Tier[] }) {
     await ensureRole(['admin'])
+    UpdateDisciplineRateSchema.parse({ discipline, data })
     const current = await prisma.settings.findUnique({ where: { id: 'singleton' } })
     const disciplineRates = { ...(current?.disciplineRates as Record<string, unknown> ?? {}), [discipline]: data }
 
@@ -87,6 +89,7 @@ export async function updateDisciplineRate(discipline: string, data: { privateRa
 
 export async function updateRoomDisciplines(roomId: string, disciplines: string[]) {
     await ensureRole(['admin'])
+    UpdateRoomDisciplinesSchema.parse({ roomId, disciplines })
     const current = await prisma.settings.findUnique({ where: { id: 'singleton' } })
     const roomDisciplines = { ...(current?.roomDisciplines as Record<string, unknown> ?? {}), [roomId]: disciplines }
 

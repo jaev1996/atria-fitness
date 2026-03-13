@@ -5,8 +5,8 @@ import prisma from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { Prisma } from "@prisma/client"
-
 import { ensureRole } from "@/lib/auth-utils"
+import { AddInstructorSchema, AddInstructorPaymentSchema } from "@/lib/schemas"
 
 export async function getInstructors() {
     console.log("Action: getInstructors called")
@@ -25,6 +25,7 @@ export async function getInstructors() {
 
 export async function addInstructor(data: { name: string, email: string, phone?: string, specialties: string[], bio?: string }) {
     await ensureRole(['admin'])
+    AddInstructorSchema.parse(data)
 
     // 0. Check if instructor already exists in Prisma to avoid duplicates
     const existing = await prisma.user.findUnique({ where: { email: data.email } })
@@ -113,6 +114,8 @@ export async function addInstructorPayment(data: {
     classIds: string[],
     notes?: string
 }) {
+    await ensureRole(['admin'])
+    AddInstructorPaymentSchema.parse(data)
     // Create payment and link classes in a transaction
     const payment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const p = await tx.instructorPayment.create({

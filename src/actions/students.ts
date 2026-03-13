@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { StudentStatus, PaymentMethod, User, Prisma } from "@prisma/client"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { ensureRole } from "@/lib/auth-utils"
+import { AddStudentSchema, ProcessPaymentSchema, AddHistoryEntrySchema } from "@/lib/schemas"
 
 export async function getStudents() {
     const user = await ensureRole(['admin', 'instructor'])
@@ -105,7 +106,8 @@ export async function addStudent(data: {
     sportsInfo?: string
 }) {
     await ensureRole(['admin'])
-    const { planType, discipline, ...studentData } = data
+    const parsed = AddStudentSchema.parse(data)
+    const { planType, discipline, ...studentData } = parsed
 
     // Generate placeholder email if not provided
     const email = data.email || `${data.phone.replace(/\s/g, '')}@atria-user.com`
@@ -229,6 +231,7 @@ export async function processStudentPayment(data: {
     discipline?: string
 }) {
     await ensureRole(['admin'])
+    ProcessPaymentSchema.parse(data)
     return await prisma.$transaction([
         prisma.studentPayment.create({
             data: {
@@ -252,6 +255,7 @@ export async function processStudentPayment(data: {
 
 export async function addHistoryEntry(studentId: string, data: { activity: string, notes?: string, cost?: number }) {
     await ensureRole(['admin'])
+    AddHistoryEntrySchema.parse(data)
     const entry = await prisma.studentHistory.create({
         data: {
             studentId,
