@@ -21,14 +21,15 @@ import { EmptyState } from "@/components/shared/empty-state"
 import { getInstructors, addInstructor, updateInstructor, deleteInstructor } from "@/actions/instructors"
 import { User as PrismaUser } from "@prisma/client"
 import { useAuth } from "@/hooks/useAuth"
+import { useSubmitting } from "@/hooks/useSubmitting"
 
 import { Suspense } from "react"
 
 function InstructorsContent() {
     const { role, loading: authLoading } = useAuth(true)
+    const { submit, isSubmitting: isSaving } = useSubmitting()
     const [instructors, setInstructors] = useState<PrismaUser[]>([])
     const [isDialogOpen, setIsDialogOpen] = useState(false)
-    const [isSaving, setIsSaving] = useState(false)
     const [isLoading, setIsLoading] = useState(true)
     const [editingId, setEditingId] = useState<string | null>(null)
 
@@ -155,28 +156,27 @@ function InstructorsContent() {
             return
         }
 
-        setIsSaving(true)
         try {
-            if (editingId) {
-                await updateInstructor(editingId, formData)
-                toast.success("Instructor actualizado")
-            } else {
-                await addInstructor(formData)
-                toast.success("Instructor creado y cuenta de acceso configurada")
-            }
+            await submit(async () => {
+                if (editingId) {
+                    await updateInstructor(editingId, formData)
+                    toast.success("Instructor actualizado")
+                } else {
+                    await addInstructor(formData)
+                    toast.success("Instructor creado y cuenta de acceso configurada")
+                }
+            })
             setIsDialogOpen(false)
             loadInstructors()
         } catch (error) {
             toast.error(error instanceof Error ? error.message : "Ocurrió un error al guardar")
-        } finally {
-            setIsSaving(false)
         }
     }
 
     const handleDelete = async (id: string) => {
         if (confirm("¿Estás seguro de eliminar este instructor?")) {
             try {
-                await deleteInstructor(id)
+                await submit(() => deleteInstructor(id))
                 toast.success("Instructor eliminado")
                 loadInstructors()
             } catch {

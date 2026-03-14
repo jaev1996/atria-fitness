@@ -232,6 +232,22 @@ export async function processStudentPayment(data: {
 }) {
     await ensureRole(['admin'])
     ProcessPaymentSchema.parse(data)
+
+    // ── Idempotency guard: reject duplicate payments within 30 seconds ──────
+    const thirtySecondsAgo = new Date(Date.now() - 30_000)
+    const recentDuplicate = await prisma.studentPayment.findFirst({
+        where: {
+            studentId: data.studentId,
+            amount: data.amount,
+            concept: data.planName,
+            date: { gte: thirtySecondsAgo }
+        }
+    })
+    if (recentDuplicate) {
+        throw new Error('Pago duplicado detectado. Este pago ya fue registrado recientemente.')
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     return await prisma.$transaction([
         prisma.studentPayment.create({
             data: {

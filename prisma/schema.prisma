@@ -145,6 +145,8 @@ model Attendee {
   status         AttendanceStatus @default(BOOKED)
   attendanceType AttendanceType   @default(STANDARD)
   creditDeducted Boolean          @default(false)
+
+  @@unique([classId, studentId])
 }
 
 model InstructorPayment {

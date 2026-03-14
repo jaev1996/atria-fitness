@@ -222,18 +222,30 @@ export async function enrollStudent(classId: string, studentId: string, type: 'S
     }
     if (classData.attendees.length >= classData.maxCapacity) throw new Error("Clase llena")
 
-    const enrollment = await prisma.attendee.create({
-        data: {
-            classId,
-            studentId,
-            attendanceType: type,
-            status: 'BOOKED'
-        },
-        include: { student: true }
-    })
+    // Check if student is already enrolled (fast local check before the DB call)
+    if (classData.attendees.some(a => a.studentId === studentId)) {
+        throw new Error("La alumna ya está inscrita en esta clase")
+    }
 
-    revalidatePath('/dashboard/calendar')
-    return enrollment
+    try {
+        const enrollment = await prisma.attendee.create({
+            data: {
+                classId,
+                studentId,
+                attendanceType: type,
+                status: 'BOOKED'
+            },
+            include: { student: true }
+        })
+        revalidatePath('/dashboard/calendar')
+        return enrollment
+    } catch (err) {
+        // Catch DB-level unique constraint violation (last resort)
+        if (err instanceof Error && 'code' in err && (err as { code: string }).code === 'P2002') {
+            throw new Error("La alumna ya está inscrita en esta clase")
+        }
+        throw err
+    }
 }
 
 export async function removeAttendee(classId: string, studentId: string) {

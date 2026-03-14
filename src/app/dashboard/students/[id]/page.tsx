@@ -1,9 +1,10 @@
 "use client"
 
-import { useState, useEffect, useCallback, useTransition } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { getStudent, updateStudent, processStudentPayment, deleteStudentPlan, deleteHistoryEntry, addHistoryEntry } from "@/actions/students"
 import { User, StudentPlan, StudentPayment, StudentHistory, StudentStatus, PaymentMethod } from "@prisma/client"
+import { useSubmitting } from "@/hooks/useSubmitting"
 import { Sidebar } from "@/components/shared/sidebar"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
@@ -31,7 +32,8 @@ export default function StudentDetailsPage() {
     const router = useRouter()
     const { role } = useAuth(true)
     const [student, setStudent] = useState<StudentWithDetails | null>(null)
-    const [isPending, startTransition] = useTransition()
+    const { submit, isSubmitting: isFormSaving } = useSubmitting()
+    const [isPaymentLoading, setIsPaymentLoading] = useState(false)
     const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false)
     const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
 
@@ -111,31 +113,27 @@ export default function StudentDetailsPage() {
 
     const handleUpdateProfile = async () => {
         if (student) {
-            startTransition(async () => {
-                try {
-                    await updateStudent(student.id, editProfileForm)
-                    toast.success("Perfil actualizado")
-                    setIsProfileDialogOpen(false)
-                    loadStudent()
-                } catch {
-                    toast.error("Error al actualizar perfil")
-                }
-            })
+            try {
+                await submit(() => updateStudent(student.id, editProfileForm))
+                toast.success("Perfil actualizado")
+                setIsProfileDialogOpen(false)
+                loadStudent()
+            } catch {
+                toast.error("Error al actualizar perfil")
+            }
         }
     }
 
     const handleUpdateMedical = async () => {
         if (student) {
-            startTransition(async () => {
-                try {
-                    await updateStudent(student.id, editMedicalForm)
-                    toast.success("Ficha médica actualizada")
-                    setIsMedicalDialogOpen(false)
-                    loadStudent()
-                } catch {
-                    toast.error("Error al actualizar ficha médica")
-                }
-            })
+            try {
+                await submit(() => updateStudent(student.id, editMedicalForm))
+                toast.success("Ficha médica actualizada")
+                setIsMedicalDialogOpen(false)
+                loadStudent()
+            } catch {
+                toast.error("Error al actualizar ficha médica")
+            }
         }
     }
 
@@ -146,41 +144,32 @@ export default function StudentDetailsPage() {
         }
 
         if (student) {
-            startTransition(async () => {
-                try {
-                    await addHistoryEntry(student.id, {
-                        activity: newEntry.activity,
-                        notes: newEntry.notes,
-                        cost: Number(newEntry.cost)
-                    })
-                    toast.success("Historial actualizado")
-                    setIsHistoryDialogOpen(false)
-                    setNewEntry({
-                        activity: "",
-                        notes: "",
-                        cost: "",
-                        date: new Date().toISOString().split('T')[0]
-                    })
-                    loadStudent()
-                } catch {
-                    toast.error("Error al agregar historial")
-                }
-            })
+            try {
+                await submit(() => addHistoryEntry(student.id, {
+                    activity: newEntry.activity,
+                    notes: newEntry.notes,
+                    cost: Number(newEntry.cost)
+                }))
+                toast.success("Historial actualizado")
+                setIsHistoryDialogOpen(false)
+                setNewEntry({ activity: "", notes: "", cost: "", date: new Date().toISOString().split('T')[0] })
+                loadStudent()
+            } catch {
+                toast.error("Error al agregar historial")
+            }
         }
     }
 
     const handleDeleteEntry = async (entryId: string) => {
         if (confirm("¿Eliminar este registro?")) {
             if (student) {
-                startTransition(async () => {
-                    try {
-                        await deleteHistoryEntry(entryId, student.id)
-                        toast.success("Registro eliminado")
-                        loadStudent()
-                    } catch {
-                        toast.error("Error al eliminar registro")
-                    }
-                })
+                try {
+                    await submit(() => deleteHistoryEntry(entryId, student.id))
+                    toast.success("Registro eliminado")
+                    loadStudent()
+                } catch {
+                    toast.error("Error al eliminar registro")
+                }
             }
         }
     }
@@ -190,31 +179,33 @@ export default function StudentDetailsPage() {
             toast.error("Datos incompletos")
             return
         }
+        if (isPaymentLoading) return  // double-click guard
         if (student) {
-            startTransition(async () => {
-                try {
-                    await processStudentPayment({
-                        studentId: student.id,
-                        amount: Number(newPayment.amount),
-                        method: newPayment.method,
-                        planName: newPayment.planName,
-                        credits: newPayment.credits,
-                        discipline: newPayment.discipline
-                    })
-                    toast.success("Pago registrado y plan agregado")
-                    setIsPaymentDialogOpen(false)
-                    setNewPayment({
-                        planName: "Pack 8 Clases",
-                        credits: 8,
-                        amount: "",
-                        method: "TRANSFERENCIA",
-                        discipline: "Pole"
-                    })
-                    loadStudent()
-                } catch {
-                    toast.error("Error al procesar pago")
-                }
-            })
+            setIsPaymentLoading(true)
+            try {
+                await processStudentPayment({
+                    studentId: student.id,
+                    amount: Number(newPayment.amount),
+                    method: newPayment.method,
+                    planName: newPayment.planName,
+                    credits: newPayment.credits,
+                    discipline: newPayment.discipline
+                })
+                toast.success("Pago registrado y plan agregado")
+                setIsPaymentDialogOpen(false)
+                setNewPayment({
+                    planName: "Pack 8 Clases",
+                    credits: 8,
+                    amount: "",
+                    method: "TRANSFERENCIA",
+                    discipline: "Pole"
+                })
+                loadStudent()
+            } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Error al procesar pago")
+            } finally {
+                setIsPaymentLoading(false)
+            }
         }
     }
 
@@ -222,15 +213,13 @@ export default function StudentDetailsPage() {
     const handleDeletePlan = async (planId: string) => {
         if (confirm("¿Estás seguro de eliminar este plan? Esta acción no se puede deshacer.")) {
             if (student) {
-                startTransition(async () => {
-                    try {
-                        await deleteStudentPlan(planId, student.id)
-                        toast.success("Plan eliminado correctamente")
-                        loadStudent()
-                    } catch {
-                        toast.error("Error al eliminar plan")
-                    }
-                })
+                try {
+                    await submit(() => deleteStudentPlan(planId, student.id))
+                    toast.success("Plan eliminado correctamente")
+                    loadStudent()
+                } catch {
+                    toast.error("Error al eliminar plan")
+                }
             }
         }
     }
@@ -328,8 +317,8 @@ export default function StudentDetailsPage() {
                                             </div>
                                             <DialogFooter>
                                                 <Button variant="outline" onClick={() => setIsProfileDialogOpen(false)}>Cancelar</Button>
-                                                <Button onClick={handleUpdateProfile} disabled={isPending}>
-                                                    {isPending ? "Guardando..." : "Guardar Cambios"}
+                                                <Button onClick={handleUpdateProfile} disabled={isFormSaving}>
+                                                    {isFormSaving ? "Guardando..." : "Guardar Cambios"}
                                                 </Button>
                                             </DialogFooter>
                                         </DialogContent>
@@ -370,7 +359,7 @@ export default function StudentDetailsPage() {
                                     <ShoppingBag className="h-4 w-4" /> Planes Activos
                                 </CardTitle>
                                 {role === 'admin' && (
-                                    <Dialog open={isPaymentDialogOpen} onOpenChange={setIsPaymentDialogOpen}>
+                                    <Dialog open={isPaymentDialogOpen} onOpenChange={(open) => { if (!isPaymentLoading) setIsPaymentDialogOpen(open) }}>
                                         <DialogTrigger asChild>
                                             <Button size="sm" variant="secondary" className="h-7 text-xs bg-white text-primary border border-primary/20 hover:bg-primary hover:text-white">
                                                 + Nuevo Plan
@@ -442,8 +431,8 @@ export default function StudentDetailsPage() {
                                             </div>
                                             <DialogFooter>
                                                 <Button variant="outline" onClick={() => setIsPaymentDialogOpen(false)}>Cancelar</Button>
-                                                <Button onClick={handleProcessPayment} disabled={isPending}>
-                                                    {isPending ? "Confirmando..." : "Confirmar"}
+                                                <Button onClick={handleProcessPayment} disabled={isPaymentLoading}>
+                                                    {isPaymentLoading ? "Confirmando..." : "Confirmar"}
                                                 </Button>
                                             </DialogFooter>
                                         </DialogContent>
@@ -555,8 +544,8 @@ export default function StudentDetailsPage() {
                                             </div>
                                             <DialogFooter>
                                                 <Button variant="outline" onClick={() => setIsMedicalDialogOpen(false)}>Cancelar</Button>
-                                                <Button onClick={handleUpdateMedical} disabled={isPending}>
-                                                    {isPending ? "Guardando..." : "Guardar Cambios"}
+                                                <Button onClick={handleUpdateMedical} disabled={isFormSaving}>
+                                                    {isFormSaving ? "Guardando..." : "Guardar Cambios"}
                                                 </Button>
                                             </DialogFooter>
                                         </DialogContent>
@@ -654,8 +643,8 @@ export default function StudentDetailsPage() {
                                             </div>
                                             <DialogFooter>
                                                 <Button variant="outline" onClick={() => setIsHistoryDialogOpen(false)}>Cancelar</Button>
-                                                <Button onClick={handleAddHistory} disabled={isPending} className="bg-primary text-primary-foreground hover:bg-primary/90">
-                                                    {isPending ? "Guardando..." : "Guardar"}
+                                                <Button onClick={handleAddHistory} disabled={isFormSaving} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                                                    {isFormSaving ? "Guardando..." : "Guardar"}
                                                 </Button>
                                             </DialogFooter>
                                         </DialogContent>

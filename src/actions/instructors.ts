@@ -116,6 +116,22 @@ export async function addInstructorPayment(data: {
 }) {
     await ensureRole(['admin'])
     AddInstructorPaymentSchema.parse(data)
+
+    // ── Idempotency guard: reject duplicate payments within 30 seconds ──────
+    const thirtySecondsAgo = new Date(Date.now() - 30_000)
+    const recentDuplicate = await prisma.instructorPayment.findFirst({
+        where: {
+            instructorId: data.instructorId,
+            amount: data.amount,
+            startDate: new Date(data.startDate),
+            date: { gte: thirtySecondsAgo }
+        }
+    })
+    if (recentDuplicate) {
+        throw new Error('Pago duplicado detectado. Este pago ya fue registrado recientemente.')
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
     // Create payment and link classes in a transaction
     const payment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
         const p = await tx.instructorPayment.create({
