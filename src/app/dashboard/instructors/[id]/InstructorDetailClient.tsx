@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ArrowLeft, DollarSign, Users, Briefcase, Mail, Phone, Printer, CheckCircle2, History, Trash, ChevronDown, ChevronRight, Sparkles, Calendar, Clock, Eye } from "lucide-react"
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns"
 import { toast } from "sonner"
+import { useCurrency } from "@/components/providers/CurrencyProvider"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface AttendeeWithStudent {
@@ -68,8 +69,9 @@ interface InstructorDetailClientProps {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
+// DEPRECATED: use context formatCurrency instead
+// const formatCurrency = (amount: number) =>
+//     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(amount)
 
 function toDateStr(d: string | Date): string {
     if (typeof d === 'string') return d.split('T')[0]
@@ -113,6 +115,7 @@ export function InstructorDetailClient({
     disciplineRates,
 }: InstructorDetailClientProps) {
     const router = useRouter()
+    const { formatCurrency } = useCurrency()
     const [isPending, startTransition] = useTransition()
 
     // Held locally so we can optimistically update without a full page reload
@@ -496,6 +499,7 @@ function PaymentAccordion({
     onDelete: (id: string) => void
     instructorName: string
 }) {
+    const { currency, formatCurrency } = useCurrency()
     const [expanded, setExpanded] = useState(false)
     const [expandedClassId, setExpandedClassId] = useState<string | null>(null)
     const [showModal, setShowModal] = useState(false)

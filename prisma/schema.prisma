@@ -166,4 +166,5 @@ model Settings {
   id              String @id @default("singleton")
   disciplineRates Json?
   roomDisciplines Json?
+  currency        String @default("$")
 }

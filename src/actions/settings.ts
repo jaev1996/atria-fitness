@@ -63,6 +63,7 @@ export async function getSettings() {
             id: 'singleton',
             disciplineRates: toJson(DEFAULT_DISCIPLINE_RATES),
             roomDisciplines: toJson(DEFAULT_ROOM_DISCIPLINES),
+            currency: '$'
         }
     })
 }
@@ -100,7 +101,27 @@ export async function updateRoomDisciplines(roomId: string, disciplines: string[
             id: 'singleton',
             disciplineRates: toJson(DEFAULT_DISCIPLINE_RATES),
             roomDisciplines: toJson({ ...DEFAULT_ROOM_DISCIPLINES, [roomId]: disciplines }),
+            currency: '$'
         }
     })
     revalidatePath('/dashboard/settings')
+}
+
+export async function updateCurrency(currency: string) {
+    await ensureRole(['admin'])
+    await prisma.settings.upsert({
+        where: { id: 'singleton' },
+        update: { currency },
+        create: {
+            id: 'singleton',
+            disciplineRates: toJson(DEFAULT_DISCIPLINE_RATES),
+            roomDisciplines: toJson(DEFAULT_ROOM_DISCIPLINES),
+            currency
+        }
+    })
+    revalidatePath('/dashboard')
+    revalidatePath('/dashboard/settings')
+    revalidatePath('/dashboard/instructors')
+    revalidatePath('/dashboard/profile')
+    revalidatePath('/dashboard/students')
 }

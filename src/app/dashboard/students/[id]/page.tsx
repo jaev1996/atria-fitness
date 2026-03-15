@@ -20,6 +20,7 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { useAuth } from "@/hooks/useAuth"
 import { DISCIPLINES } from "@/constants/config"
+import { useCurrency } from "@/components/providers/CurrencyProvider"
 
 type StudentWithDetails = User & {
     plans: StudentPlan[];
@@ -32,6 +33,7 @@ export default function StudentDetailsPage() {
     const router = useRouter()
     const { role } = useAuth(true)
     const [student, setStudent] = useState<StudentWithDetails | null>(null)
+    const { currency, formatCurrency } = useCurrency()
     const { submit, isSubmitting: isFormSaving } = useSubmitting()
     const [isPaymentLoading, setIsPaymentLoading] = useState(false)
     const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false)
@@ -413,7 +415,7 @@ export default function StudentDetailsPage() {
                                                     <Input type="number" value={newPayment.credits} onChange={e => setNewPayment({ ...newPayment, credits: parseInt(e.target.value) })} />
                                                 </div>
                                                 <div className="grid gap-2">
-                                                    <Label>Monto ($)</Label>
+                                                    <Label>Monto ({currency})</Label>
                                                     <Input type="number" value={newPayment.amount} onChange={e => setNewPayment({ ...newPayment, amount: e.target.value })} />
                                                 </div>
                                                 <div className="grid gap-2">
@@ -491,7 +493,7 @@ export default function StudentDetailsPage() {
                                                         <div className="font-medium">{p.concept}</div>
                                                         <div className="text-xs text-slate-500">{new Date(p.date).toLocaleDateString()} • {p.method}</div>
                                                     </div>
-                                                    <div className="font-bold text-green-600">${p.amount}</div>
+                                                    <div className="font-bold text-green-600">{formatCurrency(p.amount)}</div>
                                                 </div>
                                             ))
                                         )}
@@ -624,7 +626,7 @@ export default function StudentDetailsPage() {
                                                     />
                                                 </div>
                                                 <div className="grid gap-2">
-                                                    <Label>Costo / Valor ($)</Label>
+                                                    <Label>Costo / Valor ({currency})</Label>
                                                     <Input
                                                         type="number"
                                                         placeholder="0.00"
@@ -685,7 +687,7 @@ export default function StudentDetailsPage() {
                                                             )}
                                                         </TableCell>
                                                         <TableCell className="font-medium text-green-600">
-                                                            {entry.cost > 0 ? `$${entry.cost}` : '-'}
+                                                            {entry.cost > 0 ? formatCurrency(entry.cost) : '-'}
                                                         </TableCell>
                                                         <TableCell className="text-right">
                                                             {role === 'admin' && (

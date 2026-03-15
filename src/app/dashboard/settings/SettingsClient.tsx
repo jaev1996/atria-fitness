@@ -2,7 +2,8 @@
 
 import { useState } from "react"
 import { DISCIPLINES, ROOMS, Tier } from "@/constants/config"
-import { updateDisciplineRate, updateRoomDisciplines } from "@/actions/settings"
+import { updateDisciplineRate, updateRoomDisciplines, updateCurrency } from "@/actions/settings"
+import { useCurrency } from "@/components/providers/CurrencyProvider"
 import { Sidebar } from "@/components/shared/sidebar"
 import { MobileNav } from "@/components/shared/mobile-nav"
 import { Button } from "@/components/ui/button"
@@ -10,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Plus, Trash2, Save, RotateCcw, Layout, ShieldCheck, RefreshCw, AlertTriangle } from "lucide-react"
 import { toast } from "sonner"
@@ -54,6 +56,7 @@ interface SettingsClientProps {
     initialSettings: {
         disciplineRates: Record<string, { privateRate: number; rates: Tier[] }> | null
         roomDisciplines: Record<string, string[]> | null
+        currency: string | null
     } | null
 }
 
@@ -64,6 +67,8 @@ export function SettingsClient({ initialSettings }: SettingsClientProps) {
     const [roomDisciplines, setRoomDisciplines] = useState(() =>
         buildInitialRoomDisciplines(initialSettings?.roomDisciplines)
     )
+    const [currency, setCurrency] = useState(initialSettings?.currency || "$")
+    const { currency: contextCurrency } = useCurrency()
     const [saving, setSaving] = useState<string | null>(null)
 
     // ── Discipline rate handlers ───────────────────────────────────────────────
@@ -146,6 +151,18 @@ export function SettingsClient({ initialSettings }: SettingsClientProps) {
         }
     }
 
+    const handleSaveCurrency = async () => {
+        setSaving("currency")
+        try {
+            await updateCurrency(currency)
+            toast.success("Configuración de moneda guardada")
+        } catch {
+            toast.error("Error al guardar moneda")
+        } finally {
+            setSaving(null)
+        }
+    }
+
     const handleSyncMetadata = async () => {
         setSaving("sync-all")
         const id = toast.loading("Sincronizando todos los usuarios...")
@@ -171,8 +188,43 @@ export function SettingsClient({ initialSettings }: SettingsClientProps) {
             <main className="flex-1 p-4 md:p-8 overflow-y-auto min-w-0">
                 <div className="mb-6">
                     <h1 className="text-3xl font-bold text-slate-800 dark:text-slate-100">Configuración</h1>
-                    <p className="text-slate-500 mt-1">Administra las tarifas de pago por disciplina y los salones.</p>
+                    <p className="text-slate-500 mt-1">Administra las tarifas de pago por disciplina, salones y preferencias generales.</p>
                 </div>
+
+                {/* General Settings Card */}
+                <Card className="mb-8 border-none shadow-sm">
+                    <CardHeader>
+                        <CardTitle>Configuración General</CardTitle>
+                        <CardDescription>Ajustes globales de la aplicación.</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                        <div className="grid gap-4 max-w-sm">
+                            <div className="space-y-2">
+                                <Label>Símbolo de Moneda</Label>
+                                <div className="flex gap-2">
+                                    <Select value={currency} onValueChange={setCurrency}>
+                                        <SelectTrigger className="w-40 font-bold text-lg h-10">
+                                            <SelectValue placeholder="Símbolo" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="$">Dólar ($)</SelectItem>
+                                            <SelectItem value="€">Euro (€)</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <Button
+                                        disabled={saving === "currency"}
+                                        onClick={handleSaveCurrency}
+                                        className="flex-1"
+                                    >
+                                        <Save className="h-4 w-4 mr-2" />
+                                        {saving === "currency" ? "Guardando..." : "Guardar"}
+                                    </Button>
+                                </div>
+                                <p className="text-[10px] text-slate-400">Selecciona el símbolo que se mostrará en todos los montos.</p>
+                            </div>
+                        </div>
+                    </CardContent>
+                </Card>
 
                 {/* Discipline Rates Card */}
                 <Card className="mb-8 border-none shadow-sm">
@@ -200,7 +252,7 @@ export function SettingsClient({ initialSettings }: SettingsClientProps) {
                                                 <p className="text-xs text-purple-600 dark:text-purple-400">Pago fijo al instructor por cada sesión privada.</p>
                                             </div>
                                             <div className="flex items-center gap-2">
-                                                <span className="text-lg font-bold text-purple-700 dark:text-purple-300">$</span>
+                                                <span className="text-lg font-bold text-purple-700 dark:text-purple-300">{contextCurrency}</span>
                                                 <Input
                                                     type="number"
                                                     className="w-24 text-right font-bold"
@@ -230,7 +282,7 @@ export function SettingsClient({ initialSettings }: SettingsClientProps) {
                                                             <Input type="number" placeholder="∞" value={tier.max === null ? "" : tier.max} onChange={e => updateTier(discipline, idx, 'max', e.target.value)} />
                                                         </div>
                                                         <div className="grid gap-1 flex-1">
-                                                            <span className="text-[10px] text-slate-500 uppercase font-bold">Pago ($)</span>
+                                                            <span className="text-[10px] text-slate-500 uppercase font-bold">Pago ({contextCurrency})</span>
                                                             <Input type="number" className="font-bold text-green-600" value={tier.price} onChange={e => updateTier(discipline, idx, 'price', e.target.value)} />
                                                         </div>
                                                         <Button variant="ghost" size="icon" className="mt-4 text-red-500 hover:bg-red-50" onClick={() => removeTier(discipline, idx)}>

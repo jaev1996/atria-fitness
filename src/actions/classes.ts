@@ -222,10 +222,59 @@ export async function enrollStudent(classId: string, studentId: string, type: 'S
     }
     if (classData.attendees.length >= classData.maxCapacity) throw new Error("Clase llena")
 
-    // Check if student is already enrolled (fast local check before the DB call)
+    // Check if student is already enrolled in THIS class
     if (classData.attendees.some(a => a.studentId === studentId)) {
         throw new Error("La alumna ya está inscrita en esta clase")
     }
+
+    // ── Business rule 1: Student schedule collision ────────────────────────
+    // A student cannot be in two classes at the same date/time (even in different rooms)
+    const concurrentClasses = await prisma.classSession.findMany({
+        where: {
+            id: { not: classId },
+            date: classData.date,
+            startTime: classData.startTime,
+            status: { not: 'CANCELLED' }
+        },
+        select: { id: true }
+    })
+    if (concurrentClasses.length > 0) {
+        const conflict = await prisma.attendee.findFirst({
+            where: {
+                classId: { in: concurrentClasses.map(c => c.id) },
+                studentId,
+                status: 'BOOKED'
+            }
+        })
+        if (conflict) {
+            throw new Error("La alumna ya tiene una clase programada a esta misma hora en otro salón")
+        }
+    }
+    // ────────────────────────────────────────────────────────────────────────
+
+    // ── Business rule 2: Active plan with available credits ─────────────────
+    // COURTESY enrollments bypass this check intentionally
+    if (type === 'STANDARD') {
+        const student = await prisma.user.findUnique({
+            where: { id: studentId },
+            include: {
+                plans: {
+                    where: { isActive: true, credits: { gt: 0 } }
+                }
+            }
+        })
+        if (!student) throw new Error("Alumna no encontrada")
+
+        const hasValidPlan = student.plans.some(p =>
+            p.discipline === classData.type || p.discipline === 'General'
+        )
+        if (!hasValidPlan) {
+            throw new Error(
+                `La alumna no tiene un plan activo con créditos disponibles para "${classData.type}". Usa la inscripción de Cortesía si corresponde.`
+            )
+        }
+    }
+    // ────────────────────────────────────────────────────────────────────────
 
     try {
         const enrollment = await prisma.attendee.create({

@@ -10,5 +10,6 @@ export default async function SettingsPage() {
     return <SettingsClient initialSettings={settings ? {
         disciplineRates: settings.disciplineRates as Record<string, { privateRate: number; rates: Tier[] }> | null,
         roomDisciplines: settings.roomDisciplines as Record<string, string[]> | null,
+        currency: settings.currency as string | null,
     } : null} />
 }

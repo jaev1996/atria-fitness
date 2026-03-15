@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Users, Mail, Phone, History, Calendar as CalendarIcon, Wallet, User, Lock, Save, LogOut, Eye, School } from "lucide-react"
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns"
 import { toast } from "sonner"
+import { useCurrency } from "@/components/providers/CurrencyProvider"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface Tier { min: number; max: number | null; price: number }
@@ -55,8 +56,9 @@ interface ProfileClientProps {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'USD' }).format(amount)
+// DEPRECATED: use context formatCurrency instead
+// const formatCurrency = (amount: number) =>
+//     new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'USD' }).format(amount)
 
 function toDateStr(d: string | Date): string {
     if (typeof d === 'string') return d.split('T')[0]
@@ -85,6 +87,7 @@ export function ProfileClient({
 }: ProfileClientProps) {
     const router = useRouter()
     const { logout } = useAuth()
+    const { currency, formatCurrency } = useCurrency()
 
     // Profile edit state
     const [profile, setProfile] = useState(initialProfile)
