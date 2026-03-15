@@ -14,15 +14,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ChevronLeft, ChevronRight, Plus, Users, School, Trash, Sparkles, AlertTriangle } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus, Users, School, Trash, Sparkles, AlertTriangle, ZoomIn, ZoomOut, Download } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { ROOMS, RoomId } from "@/constants/config"
 import { StudentSearchSelect } from "@/components/dashboard/StudentSearchSelect"
+import { toPng } from "html-to-image"
 
-const HOURS = Array.from({ length: 13 }, (_, i) => {
-    const hour = i + 8
-    return `${hour.toString().padStart(2, '0')}:00`
+const HOURS = Array.from({ length: 26 }, (_, i) => {
+    const hour = Math.floor(i / 2) + 8
+    const minutes = i % 2 === 0 ? '00' : '30'
+    return `${hour.toString().padStart(2, '0')}:${minutes}`
 })
 
 const toYYYYMMDD = (date: Date) =>
@@ -109,6 +111,8 @@ export function CalendarClient({
     const [settings] = useState<Settings | null>(initialSettings)
     const [isPending, startTransition] = useTransition()
     const [isRefreshing, setIsRefreshing] = useState(false)
+    const [zoomLevel, setZoomLevel] = useState(1) // 0.8 to 1.5
+    const [viewType, setViewType] = useState<'week' | 'month'>('week')
 
     // UI State
     const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -141,32 +145,60 @@ export function CalendarClient({
     })
 
 
-    // Navigation — triggers a classes refresh for the new week
-    const navigateWeek = useCallback(async (direction: 'prev' | 'next') => {
+    // Navigation — triggers a classes refresh for the new period
+    const navigatePeriod = useCallback(async (direction: 'prev' | 'next') => {
         const newDate = new Date(currentWeekStart)
-        newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7))
+        if (viewType === 'week') {
+            newDate.setDate(newDate.getDate() + (direction === 'next' ? 7 : -7))
+        } else {
+            newDate.setMonth(newDate.getMonth() + (direction === 'next' ? 1 : -1))
+            newDate.setDate(1) // Always start at the 1st of the month
+        }
+        
         setCurrentWeekStart(newDate)
         setIsRefreshing(true)
         try {
-            const weekEnd = new Date(newDate)
-            weekEnd.setDate(weekEnd.getDate() + 6)
+            const periodEnd = new Date(newDate)
+            if (viewType === 'week') {
+                periodEnd.setDate(periodEnd.getDate() + 6)
+            } else {
+                periodEnd.setMonth(periodEnd.getMonth() + 1)
+                periodEnd.setDate(0) // Last day of month
+            }
+            
             const fetchedClasses = await getClasses(
                 toYYYYMMDD(newDate),
-                toYYYYMMDD(weekEnd),
+                toYYYYMMDD(periodEnd),
                 role === 'instructor' ? userId || undefined : undefined
             )
             setClasses(fetchedClasses as ClassWithDetails[])
         } catch {
-            toast.error("Error al cargar semana")
+            toast.error("Error al cargar periodo")
         } finally {
             setIsRefreshing(false)
         }
-    }, [currentWeekStart, role, userId])
+    }, [currentWeekStart, role, userId, viewType])
 
     const weekDates = useMemo(() => {
         return Array.from({ length: 6 }, (_, i) => {
             const date = new Date(currentWeekStart)
             date.setDate(date.getDate() + i)
+            return date
+        })
+    }, [currentWeekStart])
+
+    const monthDays = useMemo(() => {
+        const start = new Date(currentWeekStart)
+        start.setDate(1)
+        const dayOfWeek = start.getDay() // 0 (Sun) to 6 (Sat)
+        // Shift to Monday (1)
+        const diff = (dayOfWeek === 0 ? -6 : 1) - dayOfWeek
+        const firstViewDay = new Date(start)
+        firstViewDay.setDate(start.getDate() + diff)
+
+        return Array.from({ length: 42 }, (_, i) => {
+            const date = new Date(firstViewDay)
+            date.setDate(firstViewDay.getDate() + i)
             return date
         })
     }, [currentWeekStart])
@@ -221,14 +253,23 @@ export function CalendarClient({
     }
 
     const checkInstructorCollision = (instructorId: string, date: string, time: string, excludeClassId?: string) => {
-        // `date` is already a "YYYY-MM-DD" string from the form input.
-        // Do NOT parse it with new Date() — that creates UTC midnight which in UTC-N
-        // timezones (e.g. Venezuela UTC-4) shifts back to the previous calendar day.
+        const [h, m] = time.split(':').map(Number)
+        const startMins = h * 60 + m
+        const endMins = startMins + 60
+
         return classes.some(c => {
+            if (c.id === excludeClassId || c.status === 'CANCELLED' || c.instructorId !== instructorId) return false
+
             const cd = new Date(c.date)
-            // c.date is stored as UTC midnight in Prisma, so read as UTC to get the correct calendar day
             const cdStr = `${cd.getUTCFullYear()}-${(cd.getUTCMonth() + 1).toString().padStart(2, '0')}-${cd.getUTCDate().toString().padStart(2, '0')}`
-            return c.instructorId === instructorId && cdStr === date && c.startTime === time && c.id !== excludeClassId && c.status !== 'CANCELLED'
+            if (cdStr !== date) return false
+
+            const [ch, cm] = c.startTime.split(':').map(Number)
+            const cStartMins = ch * 60 + cm
+            const cEndMins = cStartMins + 60
+
+            // Overlap check: max(start1, start2) < min(end1, end2)
+            return Math.max(startMins, cStartMins) < Math.min(endMins, cEndMins)
         })
     }
 
@@ -375,6 +416,41 @@ export function CalendarClient({
         })
     }
 
+    const exportToImage = async () => {
+        const element = document.getElementById('calendar-capture')
+        if (!element) return
+
+        const toastId = toast.loading("Preparando imagen...")
+        try {
+            // Using html-to-image (toPng) which handles modern CSS better
+            const dataUrl = await toPng(element, {
+                cacheBust: true,
+                backgroundColor: "#ffffff",
+                style: {
+                    borderRadius: '0px',
+                    margin: '0px'
+                },
+                // Add filter to ensure hidden elements stay hidden if they leak
+                filter: (node) => {
+                    const exclusionClasses = ['no-export', 'lucide-zoom-in']
+                    if (node instanceof HTMLElement) {
+                        return !exclusionClasses.some(cls => node.classList.contains(cls))
+                    }
+                    return true
+                }
+            })
+
+            const link = document.createElement("a")
+            link.download = `calendario-atria-${toYYYYMMDD(new Date())}.png`
+            link.href = dataUrl
+            link.click()
+            toast.success("Imagen exportada con éxito", { id: toastId })
+        } catch (error) {
+            console.error("Export error:", error)
+            toast.error("Error al exportar la imagen", { id: toastId })
+        }
+    }
+
     const availableInstructors = instructors.filter(i => i.specialties.includes(formData.type))
 
     return (
@@ -388,21 +464,80 @@ export function CalendarClient({
                         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 italic">Agenda Multisalas</h1>
 
                         <div className="flex items-center justify-between bg-white dark:bg-slate-800 border rounded-full px-4 py-2 shadow-sm w-full sm:w-auto min-w-[280px]">
-                            <Button variant="ghost" size="icon" className="hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full h-8 w-8" onClick={() => navigateWeek('prev')}>
+                            <Button variant="ghost" size="icon" className="hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full h-8 w-8" onClick={() => navigatePeriod('prev')}>
                                 <ChevronLeft className="h-5 w-5" />
                             </Button>
-                            <span className="text-sm font-semibold capitalize text-slate-700 dark:text-slate-200 text-center select-none">
-                                {currentWeekStart.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })}
+                            <span className="text-sm font-semibold capitalize text-slate-700 dark:text-slate-200 text-center select-none min-w-[120px]">
+                                {viewType === 'week' 
+                                    ? currentWeekStart.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+                                    : currentWeekStart.toLocaleDateString('es-ES', { month: 'long', year: 'numeric' })
+                                }
                             </span>
-                            <Button variant="ghost" size="icon" className="hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full h-8 w-8" onClick={() => navigateWeek('next')}>
+                            <Button variant="ghost" size="icon" className="hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full h-8 w-8" onClick={() => navigatePeriod('next')}>
                                 <ChevronRight className="h-5 w-5" />
+                            </Button>
+                        </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
+                        {/* View Toggle */}
+                        <div className="flex bg-white dark:bg-slate-800 border rounded-lg p-1 shadow-sm shrink-0">
+                            <Button 
+                                variant={viewType === 'week' ? 'default' : 'ghost'} 
+                                size="sm" 
+                                className={cn("h-7 px-3 text-[10px] font-bold", viewType === 'week' ? "" : "text-slate-500")}
+                                onClick={() => setViewType('week')}
+                            >
+                                Semana
+                            </Button>
+                            <Button 
+                                variant={viewType === 'month' ? 'default' : 'ghost'} 
+                                size="sm" 
+                                className={cn("h-7 px-3 text-[10px] font-bold", viewType === 'month' ? "" : "text-slate-500")}
+                                onClick={() => setViewType('month')}
+                            >
+                                Mes
+                            </Button>
+                        </div>
+                        {/* Export Button */}
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            className="bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 gap-2 shrink-0 shadow-sm hover:bg-slate-50"
+                            onClick={exportToImage}
+                        >
+                            <Download className="h-4 w-4" />
+                            <span className="hidden xs:inline">Reporte PNG</span>
+                        </Button>
+                        {/* Zoom Controls */}
+                        <div className="hidden sm:flex items-center bg-white dark:bg-slate-800 border rounded-full px-2 py-1 shadow-sm gap-1">
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-full"
+                                onClick={() => setZoomLevel(prev => Math.max(0.6, prev - 0.1))}
+                                title="Alejar"
+                            >
+                                <ZoomOut className="h-4 w-4" />
+                            </Button>
+                            <span className="text-[10px] font-bold w-9 text-center text-slate-500">
+                                {Math.round(zoomLevel * 100)}%
+                            </span>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 rounded-full"
+                                onClick={() => setZoomLevel(prev => Math.min(1.4, prev + 0.1))}
+                                title="Acercar"
+                            >
+                                <ZoomIn className="h-4 w-4" />
                             </Button>
                         </div>
                     </div>
                 </div>
 
                 {/* Calendar Grid with Tabs */}
-                <div className="w-full">
+                <div className="w-full" id="calendar-capture">
                     <Tabs value={activeRoom} onValueChange={(v) => setActiveRoom(v as RoomId)}>
                         <div className="flex items-center mb-4 overflow-x-auto pb-2 scrollbar-hide">
                             <TabsList className="bg-white dark:bg-slate-800 p-1 flex w-max min-w-full sm:w-auto">
@@ -432,7 +567,7 @@ export function CalendarClient({
                                 <div>
                                     <div className="overflow-x-auto overflow-y-hidden rounded-lg border border-slate-200 dark:border-slate-700">
                                         <div className="min-w-[1000px] bg-white dark:bg-slate-800">
-                                            {/* Days Header */}
+                                            {/* Header */}
                                             <div className="grid grid-cols-[96px_repeat(6,1fr)] border-b dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 z-10 shadow-sm">
                                                 <div className="p-3 border-r dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-medium text-slate-500 text-center w-24 shrink-0">Hora</div>
                                                 {weekDates.map((date, i) => (
@@ -445,18 +580,39 @@ export function CalendarClient({
                                                 ))}
                                             </div>
 
-                                            {/* Time Slots */}
-                                            {HOURS.map(hour => (
-                                                <div key={hour} className="grid grid-cols-[96px_repeat(6,1fr)] border-b dark:border-slate-700 last:border-0 h-32">
-                                                    <div className="p-2 border-r dark:border-slate-700 text-xs text-slate-500 text-center flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/50 w-24 shrink-0">
-                                                        {hour}
+                                            {viewType === 'week' ? (
+                                                <>
+                                                    {/* Time Slots */}
+                                                    {HOURS.map(hour => (
+                                                <div
+                                                    key={hour}
+                                                    className="grid grid-cols-[96px_repeat(6,1fr)] border-b dark:border-slate-700 last:border-0"
+                                                    style={{ height: `${64 * zoomLevel}px` }}
+                                                >
+                                                    <div className={cn(
+                                                        "p-2 border-r dark:border-slate-700 text-slate-500 text-center flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/50 w-24 shrink-0 transition-all",
+                                                        zoomLevel < 0.8 ? "text-[9px]" : "text-xs"
+                                                    )}>
+                                                        {hour.endsWith(':00') ? hour : (zoomLevel > 0.9 ? hour : "")}
                                                     </div>
                                                     {weekDates.map((date, i) => {
                                                         const dateStr = toYYYYMMDD(date)
                                                         const classSession = classes.find(c => {
-                                                            const cDate = new Date(c.date)
-                                                            const cDateStr = `${cDate.getUTCFullYear()}-${(cDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${cDate.getUTCDate().toString().padStart(2, '0')}`
-                                                            return cDateStr === dateStr && c.startTime === hour && c.room === room.id && c.status !== 'CANCELLED'
+                                                            const cd = new Date(c.date)
+                                                            const cdStr = `${cd.getUTCFullYear()}-${(cd.getUTCMonth() + 1).toString().padStart(2, '0')}-${cd.getUTCDate().toString().padStart(2, '0')}`
+                                                            return cdStr === dateStr && c.startTime === hour && c.room === room.id && c.status !== 'CANCELLED'
+                                                        })
+
+                                                        // Check if this slot is covered by a class that started 30 mins ago
+                                                        const [h, m] = hour.split(':').map(Number)
+                                                        const currentMins = h * 60 + m
+                                                        const prevMins = currentMins - 30
+                                                        const prevHourStr = `${Math.floor(prevMins / 60).toString().padStart(2, '0')}:${(prevMins % 60).toString().padStart(2, '0')}`
+
+                                                        const coveringClass = classes.find(c => {
+                                                            const cd = new Date(c.date)
+                                                            const cdStr = `${cd.getUTCFullYear()}-${(cd.getUTCMonth() + 1).toString().padStart(2, '0')}-${cd.getUTCDate().toString().padStart(2, '0')}`
+                                                            return cdStr === dateStr && c.startTime === prevHourStr && c.room === room.id && c.status !== 'CANCELLED'
                                                         })
 
                                                         return (
@@ -464,35 +620,52 @@ export function CalendarClient({
                                                                 key={i}
                                                                 className={cn(
                                                                     "border-r dark:border-slate-700 last:border-r-0 relative p-1 transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/50 group flex-1",
-                                                                    classSession || (role !== 'instructor' && role !== null) ? "cursor-pointer" : "cursor-default"
+                                                                    (classSession || coveringClass || (role !== 'instructor' && role !== null)) ? "cursor-pointer" : "cursor-default"
                                                                 )}
                                                                 onClick={() => {
-                                                                    if (classSession || role === 'admin' || role === null) {
+                                                                    if (classSession) {
+                                                                        handleSlotClick(date, hour)
+                                                                    } else if (coveringClass) {
+                                                                        handleSlotClick(date, prevHourStr)
+                                                                    } else if (role === 'admin' || role === null) {
                                                                         handleSlotClick(date, hour)
                                                                     }
                                                                 }}
                                                             >
                                                                 {classSession ? (
-                                                                    <div className={cn(
-                                                                        "h-full w-full rounded p-2 text-[10px] sm:text-xs border-l-4 flex flex-col gap-1 shadow-sm overflow-hidden",
-                                                                        STATUS_COLORS[classSession.status]
-                                                                    )}>
-                                                                        <div className="font-bold truncate text-[11px] sm:text-sm">{classSession.type}</div>
-                                                                        <div className="truncate opacity-75 flex items-center gap-1">
-                                                                            <div className={cn("w-2 h-2 rounded-full shrink-0", getInstructorColor(classSession.instructor.name))} />
+                                                                    <div
+                                                                        className={cn(
+                                                                            "absolute inset-x-1 top-1 z-10 rounded p-1.5 sm:p-2 border-l-4 flex flex-col gap-0.5 sm:gap-1 shadow-md overflow-hidden transition-all",
+                                                                            STATUS_COLORS[classSession.status]
+                                                                        )}
+                                                                        style={{ height: `calc(${(64 * zoomLevel) * 2}px - 8px)` }}
+                                                                    >
+                                                                        <div className={cn(
+                                                                            "font-bold truncate",
+                                                                            zoomLevel < 0.8 ? "text-[9px]" : "text-[10px] sm:text-xs"
+                                                                        )}>
+                                                                            {classSession.type}
+                                                                        </div>
+                                                                        <div className={cn(
+                                                                            "truncate opacity-75 flex items-center gap-1",
+                                                                            zoomLevel < 0.8 ? "text-[8px]" : "text-[9px] sm:text-[10px]"
+                                                                        )}>
+                                                                            <div className={cn("w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full shrink-0", getInstructorColor(classSession.instructor.name))} />
                                                                             <span className="truncate">{classSession.instructor.name}</span>
                                                                         </div>
-                                                                        <div className="mt-auto flex justify-between items-center opacity-90 font-medium bg-white/50 dark:bg-black/20 p-0.5 sm:p-1 rounded">
-                                                                            <span className="flex items-center gap-1">
-                                                                                <Users className="h-2 w-2 sm:h-3 sm:w-3" />
-                                                                                {classSession.attendees.length}/{classSession.maxCapacity}
-                                                                            </span>
-                                                                            {classSession.attendees.some(a => a.attendanceType === 'COURTESY') && (
-                                                                                <Sparkles className="h-2 w-2 sm:h-3 sm:w-3 text-yellow-500" />
-                                                                            )}
-                                                                        </div>
+                                                                        {zoomLevel > 0.7 && (
+                                                                            <div className="mt-auto flex justify-between items-center opacity-90 font-medium bg-white/50 dark:bg-black/20 p-0.5 rounded text-[8px] sm:text-[10px]">
+                                                                                <span className="flex items-center gap-1">
+                                                                                    <Users className="h-2 w-2 sm:h-3 sm:w-3" />
+                                                                                    {classSession.attendees.length}/{classSession.maxCapacity}
+                                                                                </span>
+                                                                                {classSession.attendees.some(a => a.attendanceType === 'COURTESY') && (
+                                                                                    <Sparkles className="h-2 w-2 sm:h-3 sm:w-3 text-yellow-500" />
+                                                                                )}
+                                                                            </div>
+                                                                        )}
                                                                     </div>
-                                                                ) : (
+                                                                ) : !coveringClass && (
                                                                     role !== 'instructor' && role !== null && (
                                                                         <div className="hidden group-hover:flex h-full w-full items-center justify-center text-slate-300 dark:text-slate-600">
                                                                             <Plus className="h-6 w-6" />
@@ -504,6 +677,49 @@ export function CalendarClient({
                                                     })}
                                                 </div>
                                             ))}
+                                                </>
+                                            ) : (
+                                                <div className="grid grid-cols-7 border-b dark:border-slate-700 bg-slate-50 dark:bg-slate-900">
+                                                    {['Lu', 'Ma', 'Mi', 'Ju', 'Vi', 'Sa', 'Do'].map(d => (
+                                                        <div key={d} className="p-2 text-center text-[10px] font-bold text-slate-500 border-r dark:border-slate-700 last:border-0">{d}</div>
+                                                    ))}
+                                                    {monthDays.map((date, i) => {
+                                                        const dateStr = toYYYYMMDD(date)
+                                                        const isCurrentMonth = date.getMonth() === currentWeekStart.getMonth()
+                                                        const dayClasses = classes.filter(c => {
+                                                            const cd = new Date(c.date)
+                                                            const cdStr = `${cd.getUTCFullYear()}-${(cd.getUTCMonth() + 1).toString().padStart(2, '0')}-${cd.getUTCDate().toString().padStart(2, '0')}`
+                                                            return cdStr === dateStr && c.status !== 'CANCELLED'
+                                                        })
+
+                                                        return (
+                                                            <div 
+                                                                key={i} 
+                                                                className={cn(
+                                                                    "min-h-[100px] p-1 border-r border-b dark:border-slate-700 last:border-r-0 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50",
+                                                                    !isCurrentMonth && "bg-slate-50/30 dark:bg-slate-900/10 opacity-40"
+                                                                )}
+                                                            >
+                                                                <div className="text-[10px] font-bold text-slate-400 mb-1">{date.getDate()}</div>
+                                                                <div className="flex flex-col gap-1">
+                                                                    {dayClasses.map(c => (
+                                                                        <div 
+                                                                            key={c.id} 
+                                                                            className={cn(
+                                                                                "px-1 py-0.5 rounded text-[8px] truncate border-l-2 shadow-sm cursor-pointer",
+                                                                                STATUS_COLORS[c.status]
+                                                                            )}
+                                                                            onClick={() => handleSlotClick(date, c.startTime)}
+                                                                        >
+                                                                            <span className="font-bold">{c.startTime}</span> {c.type}
+                                                                        </div>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        )
+                                                    })}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>

@@ -49,27 +49,37 @@ export async function addClass(data: {
     const endH = h + 1
     const endTime = `${endH.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
 
-    // Collision Check: Instructor
-    const instructorCollision = await prisma.classSession.findFirst({
+    // Unified Collision Check: Instructor and Room
+    const dayClasses = await prisma.classSession.findMany({
         where: {
-            instructorId: parsed.instructorId,
             date: classDate,
-            startTime: parsed.startTime,
-            status: { not: 'CANCELLED' }
+            status: { not: 'CANCELLED' },
+            OR: [
+                { instructorId: parsed.instructorId },
+                { room: parsed.room }
+            ]
         }
     })
-    if (instructorCollision) throw new Error("El instructor ya tiene una clase a esta hora.")
 
-    // Collision Check: Room
-    const roomCollision = await prisma.classSession.findFirst({
-        where: {
-            room: parsed.room,
-            date: classDate,
-            startTime: parsed.startTime,
-            status: { not: 'CANCELLED' }
+    const [sh, sm] = parsed.startTime.split(':').map(Number)
+    const newStart = sh * 60 + sm
+    const newEnd = newStart + 60
+
+    for (const c of dayClasses) {
+        const [ch, cm] = c.startTime.split(':').map(Number)
+        const cStart = ch * 60 + cm
+        const cEnd = cStart + 60
+
+        const overlaps = Math.max(newStart, cStart) < Math.min(newEnd, cEnd)
+        if (overlaps) {
+            if (c.instructorId === parsed.instructorId) {
+                throw new Error(`El instructor ya tiene una clase de ${c.startTime} a ${c.endTime}.`)
+            }
+            if (c.room === parsed.room) {
+                throw new Error(`La sala ya está ocupada de ${c.startTime} a ${c.endTime}.`)
+            }
         }
-    })
-    if (roomCollision) throw new Error("La sala ya está ocupada a esta hora.")
+    }
 
     const newClass = await prisma.classSession.create({
         data: {
@@ -104,29 +114,37 @@ export async function updateClass(id: string, data: Partial<ClassSession>) {
         const checkInstructor = data.instructorId || existing.instructorId
         const checkRoom = data.room || existing.room
 
-        // Instructor collision
-        const instructorCollision = await prisma.classSession.findFirst({
+        const dayClasses = await prisma.classSession.findMany({
             where: {
                 id: { not: classId },
-                instructorId: checkInstructor,
                 date: checkDate,
-                startTime: checkTime,
-                status: { not: 'CANCELLED' }
+                status: { not: 'CANCELLED' },
+                OR: [
+                    { instructorId: checkInstructor },
+                    { room: checkRoom }
+                ]
             }
         })
-        if (instructorCollision) throw new Error("El instructor ya tiene una clase a esta hora.")
 
-        // Room collision
-        const roomCollision = await prisma.classSession.findFirst({
-            where: {
-                id: { not: classId },
-                room: checkRoom,
-                date: checkDate,
-                startTime: checkTime,
-                status: { not: 'CANCELLED' }
+        const [uh, um] = checkTime.split(':').map(Number)
+        const newStart = uh * 60 + um
+        const newEnd = newStart + 60
+
+        for (const c of dayClasses) {
+            const [ch, cm] = c.startTime.split(':').map(Number)
+            const cStart = ch * 60 + cm
+            const cEnd = cStart + 60
+
+            const overlaps = Math.max(newStart, cStart) < Math.min(newEnd, cEnd)
+            if (overlaps) {
+                if (c.instructorId === checkInstructor) {
+                    throw new Error(`El instructor ya tiene una clase de ${c.startTime} a ${c.endTime}.`)
+                }
+                if (c.room === checkRoom) {
+                    throw new Error(`La sala ya está ocupada de ${c.startTime} a ${c.endTime}.`)
+                }
             }
-        })
-        if (roomCollision) throw new Error("La sala ya está ocupada a esta hora.")
+        }
     }
 
     const updated = await prisma.classSession.update({
