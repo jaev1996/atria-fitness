@@ -163,7 +163,7 @@ export default function DashboardPage() {
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="font-semibold text-slate-800 dark:text-slate-100 truncate">
-                                                    {c.type}
+                                                    {c.type} {c.observation ? `(${c.observation})` : ''}
                                                 </p>
                                                 <p className="text-sm text-slate-500 truncate">
                                                     {role === "admin" && (

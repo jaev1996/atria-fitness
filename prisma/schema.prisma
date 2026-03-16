@@ -125,6 +125,7 @@ model ClassSession {
   maxCapacity  Int
   notes        String?
   isPrivate    Boolean     @default(false)
+  observation  String?
 
   paymentId         String?
   instructorPayment InstructorPayment? @relation(fields: [paymentId], references: [id])

@@ -131,6 +131,7 @@ export function CalendarClient({
         id?: string
         attendees: (PrismaAttendee & { student: User })[]
         isPrivate?: boolean
+        observation?: string
     }>({
         instructorId: "",
         date: "",
@@ -142,6 +143,7 @@ export function CalendarClient({
         maxCapacity: 5,
         attendees: [],
         isPrivate: false,
+        observation: "",
     })
 
 
@@ -233,6 +235,7 @@ export function CalendarClient({
                 maxCapacity: existingClass.maxCapacity,
                 attendees: existingClass.attendees,
                 isPrivate: existingClass.isPrivate ?? false,
+                observation: existingClass.observation || "",
             })
             setIsDialogOpen(true)
         } else if (role === 'admin' || role === null) {
@@ -247,6 +250,7 @@ export function CalendarClient({
                 maxCapacity: 5,
                 attendees: [],
                 isPrivate: false,
+                observation: "",
             })
             setIsDialogOpen(true)
         }
@@ -278,6 +282,10 @@ export function CalendarClient({
             toast.error("Faltan datos obligatorios (Instructor, Disciplina)")
             return
         }
+        if (formData.type === 'Pole' && !formData.observation) {
+            toast.error("Debes seleccionar el tipo de clase de Pole")
+            return
+        }
         const instructor = instructors.find(i => i.id === formData.instructorId)
         if (!instructor) return
 
@@ -295,6 +303,7 @@ export function CalendarClient({
                         room: formData.room,
                         maxCapacity: formData.maxCapacity,
                         isPrivate: formData.isPrivate,
+                        observation: formData.observation,
                     })
 
                     // Optimistic update: patch the class in local state
@@ -314,6 +323,7 @@ export function CalendarClient({
                         maxCapacity: formData.maxCapacity,
                         notes: formData.notes,
                         isPrivate: formData.isPrivate,
+                        observation: formData.observation,
                     })
 
                     // Optimistic update: add the new class to local state
@@ -644,7 +654,7 @@ export function CalendarClient({
                                                                             "font-bold truncate",
                                                                             zoomLevel < 0.8 ? "text-[9px]" : "text-[10px] sm:text-xs"
                                                                         )}>
-                                                                            {classSession.type}
+                                                                            {classSession.type} {classSession.observation ? `(${classSession.observation})` : ''}
                                                                         </div>
                                                                         <div className={cn(
                                                                             "truncate opacity-75 flex items-center gap-1",
@@ -711,7 +721,7 @@ export function CalendarClient({
                                                                             )}
                                                                             onClick={() => handleSlotClick(date, c.startTime)}
                                                                         >
-                                                                            <span className="font-bold">{c.startTime}</span> {c.type}
+                                                                            <span className="font-bold">{c.startTime}</span> {c.type} {c.observation ? `(${c.observation})` : ''}
                                                                         </div>
                                                                     ))}
                                                                 </div>
@@ -806,6 +816,19 @@ export function CalendarClient({
                                     )}
                                 </div>
                             </div>
+                            {formData.type === 'Pole' && (
+                                <div className="grid gap-2 border p-3 rounded-md border-pink-200 bg-pink-50 dark:bg-pink-900/20 dark:border-pink-800">
+                                    <Label className="text-pink-700 dark:text-pink-300">Tipo de clase de Pole (Obligatorio)</Label>
+                                    <Select value={formData.observation || ''} onValueChange={v => setFormData({ ...formData, observation: v })} disabled={role === 'instructor'}>
+                                        <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
+                                        <SelectContent>
+                                            {['Fitness', 'Coreografico', 'Giratorio', 'Exotic', 'Sport', 'Flexi', 'Flow', 'Power'].map(o => (
+                                                <SelectItem key={o} value={o}>{o}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                            )}
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
                                     <Label>Capacidad Máxima</Label>

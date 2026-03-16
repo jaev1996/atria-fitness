@@ -93,6 +93,7 @@ export const AddClassSchema = z.object({
     maxCapacity: z.number().int().min(1, 'Mínimo 1 persona.').max(100, 'Capacidad máxima excedida.'),
     notes: z.string().max(500).optional(),
     isPrivate: z.boolean().optional(),
+    observation: z.string().max(100).optional(),
 })
 
 export const EnrollStudentSchema = z.object({

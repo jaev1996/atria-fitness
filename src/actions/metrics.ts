@@ -79,6 +79,7 @@ export async function getDashboardMetrics(instructorId?: string) {
             instructorName: c.instructor.name,
             attendeesCount: c.attendees.length,
             maxCapacity: c.maxCapacity,
+            observation: c.observation,
         })),
     }
 }

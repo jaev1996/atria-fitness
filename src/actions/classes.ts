@@ -38,7 +38,8 @@ export async function addClass(data: {
     room: string,
     maxCapacity: number,
     notes?: string,
-    isPrivate?: boolean
+    isPrivate?: boolean,
+    observation?: string
 }) {
     await ensureRole(['admin'])
     const parsed = AddClassSchema.parse(data)

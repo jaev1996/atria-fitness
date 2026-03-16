@@ -41,6 +41,7 @@ interface ClassWithAttendees {
     paymentId?: string | null
     maxCapacity: number
     isPrivate?: boolean
+    observation?: string | null
     attendees: AttendeeWithStudent[]
 }
 
@@ -408,7 +409,7 @@ export function InstructorDetailClient({
                                                                 <TableCell className="font-medium">{format(parseISO(toDateStr(c.date)), "dd/MM/yyyy")}</TableCell>
                                                                 <TableCell>{c.startTime}</TableCell>
                                                                 <TableCell>
-                                                                    <Badge variant="outline" className="capitalize">{c.type}</Badge>
+                                                                    <Badge variant="outline" className="capitalize">{c.type} {c.observation ? `(${c.observation})` : ''}</Badge>
                                                                 </TableCell>
                                                                 <TableCell>{roomName}</TableCell>
                                                                 <TableCell className="text-right">
@@ -499,7 +500,7 @@ function PaymentAccordion({
     onDelete: (id: string) => void
     instructorName: string
 }) {
-    const { currency, formatCurrency } = useCurrency()
+    const { formatCurrency } = useCurrency()
     const [expanded, setExpanded] = useState(false)
     const [expandedClassId, setExpandedClassId] = useState<string | null>(null)
     const [showModal, setShowModal] = useState(false)
@@ -517,7 +518,7 @@ function PaymentAccordion({
                 <tr style="border-bottom:1px solid #e2e8f0">
                     <td style="padding:8px 6px;font-size:13px;color:#374151">${idx + 1}</td>
                     <td style="padding:8px 6px;font-size:13px">${format(parseISO(toDateStr(cls.date)), 'dd/MM/yyyy')} ${cls.startTime}</td>
-                    <td style="padding:8px 6px;font-size:13px">${cls.type}${cls.isPrivate ? ' ★' : ''}</td>
+                    <td style="padding:8px 6px;font-size:13px">${cls.type}${cls.observation ? ` (${cls.observation})` : ''}${cls.isPrivate ? ' ★' : ''}</td>
                     <td style="padding:8px 6px;font-size:13px">${roomName}</td>
                     <td style="padding:8px 6px;font-size:13px;text-align:center">${bookedAttendees.length}</td>
                     <td style="padding:8px 6px;font-size:13px;font-weight:600;color:#16a34a;text-align:right">${formatCurrency(classAmount)}</td>
@@ -732,7 +733,7 @@ function PaymentAccordion({
                                         <Clock className="h-3 w-3 text-slate-400" />
                                         <span className="text-sm">{cls.startTime}</span>
                                     </span>
-                                    <Badge variant="outline" className="text-xs capitalize shrink-0">{cls.type}</Badge>
+                                    <Badge variant="outline" className="text-xs capitalize shrink-0">{cls.type} {cls.observation ? `(${cls.observation})` : ''}</Badge>
                                     {cls.isPrivate && (
                                         <Badge className="text-[10px] bg-purple-100 text-purple-700 border-0 shrink-0">
                                             <Sparkles className="h-2.5 w-2.5 mr-0.5" /> Privada
