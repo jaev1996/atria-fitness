@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dumbbell, Loader2, Mail, Lock, ArrowRight, ShieldCheck } from "lucide-react"
+import Image from "next/image"
+import { Loader2, Mail, Lock, ArrowRight, ShieldCheck } from "lucide-react"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
 import { login } from "@/actions/auth"
@@ -52,8 +53,8 @@ export default function LoginPage() {
             <div className="hidden lg:flex flex-col justify-between flex-1 relative p-12 overflow-hidden bg-linear-to-br from-slate-900 to-slate-950">
 
                 {/* Blobs */}
-                <div className="absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full bg-primary/20 blur-3xl pointer-events-none" />
-                <div className="absolute -bottom-32 -right-20 h-80 w-80 rounded-full bg-primary/10 blur-2xl pointer-events-none" />
+                <div className="absolute -top-40 -left-40 h-[500px] w-[500px] rounded-full bg-brand-primary/20 blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-32 -right-20 h-80 w-80 rounded-full bg-brand-primary/10 blur-2xl pointer-events-none" />
                 {/* Grid texture */}
                 <div
                     className="absolute inset-0 opacity-[0.03] pointer-events-none"
@@ -65,17 +66,15 @@ export default function LoginPage() {
 
                 {/* Logo */}
                 <div className="relative flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/40">
-                        <Dumbbell className="h-5 w-5 text-white" />
-                    </div>
-                    <span className="text-xl font-bold tracking-tight">Atria Fitness</span>
+                    <Image src="/logos/isotipo-color.png" alt="Atria Fitness Logo" width={128} height={128} className="h-24 w-auto object-contain" />
+                    <span className="text-3xl font-bold tracking-tight">Atria Fitness</span>
                 </div>
 
                 {/* Quote */}
                 <div className="relative space-y-6 max-w-md">
                     <h2 className="text-4xl xl:text-5xl font-extrabold leading-tight tracking-tight">
                         Sistema de
-                        <span className="text-transparent bg-clip-text bg-linear-to-r from-primary to-purple-400">
+                        <span className="text-transparent bg-clip-text bg-linear-to-r from-brand-primary to-brand-secondary">
                             {" "}Gestión Interna.
                         </span>
                     </h2>
@@ -92,7 +91,7 @@ export default function LoginPage() {
                             "Liquidaciones y comprobantes de pago",
                         ].map(item => (
                             <div key={item} className="flex items-center gap-2 text-sm text-slate-400">
-                                <span className="h-1.5 w-1.5 rounded-full bg-primary/70 shrink-0" />
+                                <span className="h-1.5 w-1.5 rounded-full bg-brand-secondary/70 shrink-0" />
                                 {item}
                             </div>
                         ))}
@@ -113,10 +112,8 @@ export default function LoginPage() {
 
                 {/* Mobile logo */}
                 <div className="flex items-center gap-3 mb-10 lg:hidden">
-                    <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/40">
-                        <Dumbbell className="h-5 w-5 text-white" />
-                    </div>
-                    <span className="text-xl font-bold tracking-tight">Atria Fitness</span>
+                    <Image src="/logos/isotipo-color.png" alt="Atria Fitness Logo" width={64} height={64} className="h-16 w-auto object-contain" />
+                    <span className="text-2xl font-bold tracking-tight">Atria Fitness</span>
                 </div>
 
                 {/* Header */}
@@ -141,7 +138,7 @@ export default function LoginPage() {
                                 onChange={(e) => setEmail(e.target.value)}
                                 required
                                 disabled={isLoading}
-                                className="pl-10 h-11 bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-primary focus:ring-primary/20 transition-colors"
+                                className="pl-10 h-11 bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-brand-primary focus:ring-brand-primary/20 transition-colors"
                             />
                         </div>
                     </div>
@@ -160,7 +157,7 @@ export default function LoginPage() {
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
                                 disabled={isLoading}
-                                className="pl-10 h-11 bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-primary focus:ring-primary/20 transition-colors"
+                                className="pl-10 h-11 bg-slate-800 border-slate-700 text-white placeholder:text-slate-600 focus:border-brand-primary focus:ring-brand-primary/20 transition-colors"
                             />
                         </div>
                     </div>
@@ -168,7 +165,7 @@ export default function LoginPage() {
                     <button
                         type="submit"
                         disabled={isLoading}
-                        className="w-full flex items-center justify-center gap-2 bg-primary hover:bg-primary/90 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold h-11 rounded-xl transition-all duration-200 shadow-lg shadow-primary/25 hover:shadow-primary/40 mt-2"
+                        className="w-full flex items-center justify-center gap-2 bg-brand-primary hover:bg-brand-primary/90 disabled:opacity-60 disabled:cursor-not-allowed text-white font-semibold h-11 rounded-xl transition-all duration-200 shadow-lg shadow-brand-primary/25 hover:shadow-brand-primary/40 mt-2"
                     >
                         {isLoading ? (
                             <>

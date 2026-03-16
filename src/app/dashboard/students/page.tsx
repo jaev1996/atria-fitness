@@ -107,7 +107,7 @@ function StudentsContent() {
 
     if (authLoading) return (
         <div className="flex h-screen flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 gap-4 text-slate-500">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <Loader2 className="h-10 w-10 animate-spin text-brand-primary" />
             <p className="italic text-sm animate-pulse">Verificando permisos...</p>
         </div>
     );
@@ -230,7 +230,7 @@ function StudentsContent() {
                             </Button>
                             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                                 <DialogTrigger asChild>
-                                    <Button className="bg-primary hover:bg-primary/90 text-primary-foreground w-full sm:w-auto">
+                                    <Button className="bg-brand-primary hover:bg-brand-primary/90 text-white w-full sm:w-auto">
                                         <PlusCircle className="mr-2 h-4 w-4" /> Nueva Alumna
                                     </Button>
                                 </DialogTrigger>
@@ -267,7 +267,7 @@ function StudentsContent() {
                                             />
                                         </div>
                                         <div className="grid gap-2 col-span-2 border-t pt-2 mt-2">
-                                            <Label className="font-semibold text-primary">Información Médica</Label>
+                                            <Label className="font-semibold text-brand-primary">Información Médica</Label>
                                         </div>
                                         <div className="grid gap-2">
                                             <Label htmlFor="allergies">Alergias</Label>
@@ -315,7 +315,7 @@ function StudentsContent() {
                                             />
                                         </div>
                                         <div className="grid gap-2 col-span-2 border-t pt-2 mt-2">
-                                            <Label className="font-semibold text-primary">Información Deportiva & Plan</Label>
+                                            <Label className="font-semibold text-brand-primary">Información Deportiva & Plan</Label>
                                         </div>
                                         <div className="grid gap-2">
                                             <Label htmlFor="sportsInfo">Antecedentes Deportivos</Label>
@@ -362,7 +362,7 @@ function StudentsContent() {
                                     </div>
                                     <DialogFooter>
                                         <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
-                                        <Button onClick={handleCreateStudent} disabled={isPending} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                                        <Button onClick={handleCreateStudent} disabled={isPending} className="bg-brand-primary text-white hover:bg-brand-primary/90">
                                             {isPending ? "Guardando..." : "Guardar"}
                                         </Button>
                                     </DialogFooter>
@@ -468,7 +468,7 @@ function StudentsContent() {
                                         return (
                                             <TableRow key={student.id}>
                                                 <TableCell className="font-medium flex items-center gap-3">
-                                                    <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary relative">
+                                                    <div className="h-9 w-9 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary relative">
                                                         <UserIcon className="h-5 w-5" />
                                                         {hasMedical && (
                                                             <TooltipProvider>
@@ -515,7 +515,7 @@ function StudentsContent() {
                                                 <TableCell className="text-right">
                                                     <div className="flex justify-end gap-2">
                                                         <Link href={`/dashboard/students/${student.id}`}>
-                                                            <Button variant="ghost" size="sm" className="hover:text-primary hover:bg-primary/10">
+                                                            <Button variant="ghost" size="sm" className="hover:text-brand-primary hover:bg-brand-primary/10">
                                                                 <Eye className="h-4 w-4" />
                                                             </Button>
                                                         </Link>
@@ -560,9 +560,9 @@ export default function StudentsPage() {
                 <div className="flex-1 flex items-center justify-center p-8">
                     <div className="flex flex-col items-center gap-6 bg-white dark:bg-slate-800/80 backdrop-blur px-14 py-12 rounded-3xl shadow-lg border border-slate-100 dark:border-slate-700">
                         <div className="relative flex items-center justify-center">
-                            <div className="absolute h-24 w-24 rounded-full bg-primary/10 animate-pulse" />
-                            <div className="absolute h-20 w-20 rounded-full ring-2 ring-primary/30" />
-                            <Loader2 className="h-10 w-10 text-primary animate-spin relative z-10" />
+                            <div className="absolute h-24 w-24 rounded-full bg-brand-primary/10 animate-pulse" />
+                            <div className="absolute h-20 w-20 rounded-full ring-2 ring-brand-primary/30" />
+                            <Loader2 className="h-10 w-10 text-brand-primary animate-spin relative z-10" />
                         </div>
                         <div className="flex flex-col items-center gap-1.5">
                             <p className="text-base font-semibold text-slate-800 dark:text-slate-100 tracking-tight">Cargando alumnas</p>
@@ -570,7 +570,7 @@ export default function StudentsPage() {
                         </div>
                         <div className="flex gap-1.5">
                             {[0, 150, 300].map((delay) => (
-                                <span key={delay} className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce" style={{ animationDelay: `${delay}ms` }} />
+                                <span key={delay} className="h-1.5 w-1.5 rounded-full bg-brand-primary/60 animate-bounce" style={{ animationDelay: `${delay}ms` }} />
                             ))}
                         </div>
                     </div>

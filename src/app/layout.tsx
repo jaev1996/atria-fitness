@@ -16,6 +16,14 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Atria Fitness",
   description: "Sistema de Gestión para Centro Fitness",
+  icons: {
+    icon: [
+      { url: '/icon.png?v=2', type: 'image/png' },
+    ],
+    apple: [
+      { url: '/apple-icon.png?v=2', type: 'image/png' },
+    ],
+  },
 };
 
 import { CookieConsent } from "@/components/shared/cookie-consent";

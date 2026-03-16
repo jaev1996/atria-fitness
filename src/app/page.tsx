@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { ArrowRight, Dumbbell, Users, CalendarCheck, ShieldCheck } from "lucide-react"
+import Image from "next/image"
+import { ArrowRight, Users, CalendarCheck, ShieldCheck, Dumbbell } from "lucide-react"
 
 export default function Home() {
   return (
@@ -10,8 +11,8 @@ export default function Home() {
 
         {/* Background geometry */}
         <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-primary/20 blur-3xl" />
-          <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-primary/10 blur-2xl" />
+          <div className="absolute -top-32 -left-32 h-96 w-96 rounded-full bg-brand-primary/20 blur-3xl" />
+          <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-brand-primary/10 blur-2xl" />
           <div
             className="absolute inset-0 opacity-[0.03]"
             style={{
@@ -23,22 +24,20 @@ export default function Home() {
 
         {/* Logo */}
         <div className="relative flex items-center gap-3">
-          <div className="h-9 w-9 rounded-xl bg-primary flex items-center justify-center shadow-lg shadow-primary/40">
-            <Dumbbell className="h-5 w-5 text-white" />
-          </div>
-          <span className="text-xl font-bold tracking-tight">Atria Fitness</span>
+          <Image src="/logos/isotipo-color.png" alt="Atria Fitness Logo" width={128} height={128} className="h-24 w-auto object-contain" />
+          <span className="text-3xl font-bold tracking-tight">Atria Fitness</span>
         </div>
 
         {/* Hero */}
         <div className="relative space-y-6">
-          <div className="inline-flex items-center gap-2 bg-primary/15 border border-primary/25 text-primary text-xs font-semibold px-3 py-1.5 rounded-full uppercase tracking-wider">
-            <span className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse" />
+          <div className="inline-flex items-center gap-2 bg-brand-primary/15 border border-brand-primary/25 text-brand-secondary text-xs font-semibold px-3 py-1.5 rounded-full uppercase tracking-wider">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-secondary animate-pulse" />
             Sistema de Gestión Interna
           </div>
 
           <h1 className="text-4xl md:text-5xl xl:text-6xl font-extrabold leading-tight tracking-tight">
             Portal de
-            <span className="text-transparent bg-clip-text bg-linear-to-r from-primary to-purple-400">
+            <span className="text-transparent bg-clip-text bg-linear-to-r from-brand-primary to-brand-secondary">
               {" "}Administración.
             </span>
           </h1>
@@ -50,7 +49,7 @@ export default function Home() {
 
           <div className="flex flex-wrap gap-3 pt-2">
             <Link href="/login">
-              <button className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white font-semibold px-7 py-3 rounded-xl transition-all duration-200 shadow-lg shadow-primary/30 hover:shadow-primary/50 hover:scale-[1.02] text-sm">
+              <button className="flex items-center gap-2 bg-brand-primary hover:bg-brand-primary/90 text-white font-semibold px-7 py-3 rounded-xl transition-all duration-200 shadow-lg shadow-brand-primary/30 hover:shadow-brand-primary/50 hover:scale-[1.02] text-sm">
                 Acceder al Sistema
                 <ArrowRight className="h-4 w-4" />
               </button>

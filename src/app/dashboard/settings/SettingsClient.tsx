@@ -313,7 +313,7 @@ export function SettingsClient({ initialSettings }: SettingsClientProps) {
                 <Card className="border-none shadow-sm">
                     <CardHeader>
                         <CardTitle className="flex items-center gap-2">
-                            <Layout className="h-5 w-5 text-primary" /> Distribución de Disciplinas por Sala
+                            <Layout className="h-5 w-5 text-brand-primary" /> Distribución de Disciplinas por Sala
                         </CardTitle>
                         <CardDescription>
                             Define qué disciplinas están permitidas y se pueden programar en cada salón.

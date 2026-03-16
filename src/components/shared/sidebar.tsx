@@ -1,5 +1,6 @@
 import Link from "next/link"
-import { LayoutDashboard, Users, UserCog, Calendar, Settings, LogOut, Dumbbell, BarChart3, User } from "lucide-react"
+import Image from "next/image"
+import { LayoutDashboard, Users, UserCog, Calendar, Settings, LogOut, BarChart3, User } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
 
 export const menuItems = [
@@ -31,8 +32,8 @@ export function Sidebar() {
     return (
         <div className="hidden md:flex h-screen w-64 flex-col border-r bg-white dark:bg-slate-900 dark:border-slate-800 shrink-0">
             <div className="flex h-16 items-center border-b px-6 dark:border-slate-800">
-                <Link href="/dashboard" className="flex items-center gap-2 font-bold text-primary">
-                    <Dumbbell className="h-6 w-6" />
+                <Link href="/dashboard" className="flex items-center gap-2 font-bold text-brand-primary">
+                    <Image src="/logos/isotipo-color.png" alt="Atria Fitness Logo" width={36} height={36} className="h-12 w-auto object-contain" priority />
                     <span className="text-xl">Atria Fitness</span>
                 </Link>
             </div>
@@ -41,7 +42,7 @@ export function Sidebar() {
                     <Link
                         key={item.label}
                         href={item.href}
-                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-slate-600 dark:text-slate-400 transition-colors hover:bg-primary/10 hover:text-primary dark:hover:text-primary"
+                        className="flex items-center gap-3 rounded-lg px-3 py-2 text-slate-600 dark:text-slate-400 transition-colors hover:bg-brand-primary/10 hover:text-brand-primary dark:hover:text-brand-primary"
                     >
                         <item.icon className="h-5 w-5" />
                         {item.label}
@@ -52,7 +53,7 @@ export function Sidebar() {
                 {user && (
                     <div className="mb-4 px-3 py-2 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-800">
                         <div className="flex items-center gap-2">
-                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xs">
+                            <div className="h-8 w-8 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary font-bold text-xs">
                                 {user.user_metadata?.name?.charAt(0) || user.email?.charAt(0) || 'U'}
                             </div>
                             <div className="flex flex-col min-w-0">

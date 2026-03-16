@@ -2,8 +2,9 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { Menu, X, Dumbbell, LogOut } from "lucide-react"
+import { Menu, X, LogOut } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/hooks/useAuth"
 import { menuItems } from "./sidebar"
@@ -29,8 +30,8 @@ export function MobileNav() {
 
     return (
         <div className="md:hidden flex h-16 items-center justify-between border-b bg-white dark:bg-slate-900 px-6 dark:border-slate-800 sticky top-0 z-40 w-full shrink-0">
-            <Link href="/dashboard" className="flex items-center gap-2 font-bold text-primary">
-                <Dumbbell className="h-6 w-6" />
+            <Link href="/dashboard" className="flex items-center gap-2 font-bold text-brand-primary">
+                <Image src="/logos/isotipo-color.png" alt="Atria Logo" width={36} height={36} className="h-12 w-auto object-contain" />
                 <span className="text-xl">Atria</span>
             </Link>
 
@@ -45,8 +46,8 @@ export function MobileNav() {
                     <DialogDescription className="sr-only">Accede a las diferentes secciones de la aplicación.</DialogDescription>
                     <div className="flex h-full flex-col bg-white dark:bg-slate-900">
                         <div className="flex h-16 items-center justify-between border-b px-6 dark:border-slate-800">
-                            <div className="flex items-center gap-2 font-bold text-primary">
-                                <Dumbbell className="h-6 w-6" />
+                            <div className="flex items-center gap-2 font-bold text-brand-primary">
+                                <Image src="/logos/isotipo-color.png" alt="Atria Logo" width={36} height={36} className="h-12 w-auto object-contain" />
                                 <span className="text-xl">Atria Fitness</span>
                             </div>
                             <Button variant="ghost" size="icon" onClick={() => setOpen(false)}>
@@ -60,8 +61,8 @@ export function MobileNav() {
                                     href={item.href}
                                     onClick={() => setOpen(false)}
                                     className={`flex items-center gap-3 rounded-lg px-3 py-3 transition-colors ${pathname === item.href
-                                        ? "bg-primary text-white"
-                                        : "text-slate-600 dark:text-slate-400 hover:bg-primary/10 hover:text-primary"
+                                        ? "bg-brand-primary text-brand-secondary"
+                                        : "text-slate-600 dark:text-slate-400 hover:bg-brand-primary/10 hover:text-brand-primary"
                                         }`}
                                 >
                                     <item.icon className="h-5 w-5" />

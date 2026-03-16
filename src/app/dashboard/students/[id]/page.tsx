@@ -233,9 +233,9 @@ export default function StudentDetailsPage() {
                 <div className="flex flex-col items-center gap-6 bg-white dark:bg-slate-800/80 backdrop-blur px-14 py-12 rounded-3xl shadow-lg border border-slate-100 dark:border-slate-700">
                     {/* Brand glow ring + spinner */}
                     <div className="relative flex items-center justify-center">
-                        <div className="absolute h-24 w-24 rounded-full bg-primary/10 animate-pulse" />
-                        <div className="absolute h-20 w-20 rounded-full ring-2 ring-primary/30" />
-                        <Loader2 className="h-10 w-10 text-primary animate-spin relative z-10" />
+                        <div className="absolute h-24 w-24 rounded-full bg-brand-primary/10 animate-pulse" />
+                        <div className="absolute h-20 w-20 rounded-full ring-2 ring-brand-primary/30" />
+                        <Loader2 className="h-10 w-10 text-brand-primary animate-spin relative z-10" />
                     </div>
                     {/* Text */}
                     <div className="flex flex-col items-center gap-1.5">
@@ -247,7 +247,7 @@ export default function StudentDetailsPage() {
                         {[0, 150, 300].map((delay) => (
                             <span
                                 key={delay}
-                                className="h-1.5 w-1.5 rounded-full bg-primary/60 animate-bounce"
+                                className="h-1.5 w-1.5 rounded-full bg-brand-primary/60 animate-bounce"
                                 style={{ animationDelay: `${delay}ms` }}
                             />
                         ))}
@@ -355,15 +355,15 @@ export default function StudentDetailsPage() {
                         </Card>
 
                         {/* PLAN WIDGET & PAYMENT */}
-                        <Card className="border-primary/20 bg-primary/5 dark:bg-primary/10">
+                        <Card className="border-brand-primary/20 bg-brand-primary/5 dark:bg-brand-primary/10">
                             <CardHeader className="flex flex-row items-center justify-between pb-2">
-                                <CardTitle className="text-primary flex items-center gap-2">
+                                <CardTitle className="text-brand-primary flex items-center gap-2">
                                     <ShoppingBag className="h-4 w-4" /> Planes Activos
                                 </CardTitle>
                                 {role === 'admin' && (
                                     <Dialog open={isPaymentDialogOpen} onOpenChange={(open) => { if (!isPaymentLoading) setIsPaymentDialogOpen(open) }}>
                                         <DialogTrigger asChild>
-                                            <Button size="sm" variant="secondary" className="h-7 text-xs bg-white text-primary border border-primary/20 hover:bg-primary hover:text-white">
+                                            <Button size="sm" variant="secondary" className="h-7 text-xs bg-white text-brand-primary border border-brand-primary/20 hover:bg-brand-primary hover:text-white">
                                                 + Nuevo Plan
                                             </Button>
                                         </DialogTrigger>
@@ -645,7 +645,7 @@ export default function StudentDetailsPage() {
                                             </div>
                                             <DialogFooter>
                                                 <Button variant="outline" onClick={() => setIsHistoryDialogOpen(false)}>Cancelar</Button>
-                                                <Button onClick={handleAddHistory} disabled={isFormSaving} className="bg-primary text-primary-foreground hover:bg-primary/90">
+                                                <Button onClick={handleAddHistory} disabled={isFormSaving} className="bg-brand-primary text-white hover:bg-brand-primary/90">
                                                     {isFormSaving ? "Guardando..." : "Guardar"}
                                                 </Button>
                                             </DialogFooter>

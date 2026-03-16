@@ -555,7 +555,7 @@ export function CalendarClient({
                                     <TabsTrigger
                                         key={room.id}
                                         value={room.id}
-                                        className="px-6 data-[state=active]:bg-primary data-[state=active]:text-white whitespace-nowrap"
+                                        className="px-6 data-[state=active]:bg-brand-primary data-[state=active]:text-white whitespace-nowrap"
                                     >
                                         {room.name}
                                     </TabsTrigger>
@@ -569,7 +569,7 @@ export function CalendarClient({
                                 {isRefreshing && (
                                     <div className="absolute inset-0 z-20 bg-white/60 dark:bg-slate-800/60 backdrop-blur-[1px] rounded-lg flex items-center justify-center">
                                         <div className="flex items-center gap-2 text-sm text-slate-500 bg-white dark:bg-slate-800 px-4 py-2 rounded-full shadow border">
-                                            <span className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                                            <span className="h-4 w-4 border-2 border-brand-primary border-t-transparent rounded-full animate-spin" />
                                             Actualizando...
                                         </div>
                                     </div>
@@ -760,14 +760,14 @@ export function CalendarClient({
 
                     {role === 'instructor' ? (
                         <div className="bg-blue-50 border border-blue-200 p-3 rounded-lg flex items-center gap-2 mb-2">
-                            <Sparkles className="h-4 w-4 text-primary" />
+                            <Sparkles className="h-4 w-4 text-brand-primary" />
                             <span className="text-sm text-blue-800">Vista de solo lectura del Instructor</span>
                         </div>
                     ) : null}
 
                     <div className="grid gap-6 py-4">
                         <section className="space-y-4 border-b pb-4">
-                            <h3 className="font-semibold text-sm text-primary flex items-center gap-2">
+                            <h3 className="font-semibold text-sm text-brand-primary flex items-center gap-2">
                                 <School className="h-4 w-4" /> Detalles de Clase
                             </h3>
                             <div className="grid grid-cols-2 gap-4">

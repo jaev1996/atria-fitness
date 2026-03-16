@@ -60,12 +60,12 @@ export function CookieConsent() {
                     <div className="bg-white/95 dark:bg-slate-900/95 rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-slate-200/50 dark:border-slate-700/50 p-6 flex flex-col gap-5 backdrop-blur-xl">
                         <div className="flex items-start justify-between">
                             <div className="flex items-center gap-3">
-                                <div className="p-2.5 bg-primary/10 rounded-xl">
-                                    <Cookie className="h-6 w-6 text-primary" />
+                                <div className="p-2.5 bg-brand-primary/10 rounded-xl">
+                                    <Cookie className="h-6 w-6 text-brand-primary" />
                                 </div>
                                 <div>
                                     <h3 className="font-bold text-lg text-slate-900 dark:text-slate-50">Control de Cookies</h3>
-                                    <p className="text-[10px] text-primary font-medium tracking-wider uppercase">Privacidad garantizada</p>
+                                    <p className="text-[10px] text-brand-primary font-medium tracking-wider uppercase">Privacidad garantizada</p>
                                 </div>
                             </div>
                             <button onClick={() => setIsVisible(false)} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1">
@@ -80,7 +80,7 @@ export function CookieConsent() {
 
                             <button
                                 onClick={() => setShowDetails(!showDetails)}
-                                className="flex items-center gap-1.5 text-xs font-semibold text-primary hover:text-primary/80 transition-colors"
+                                className="flex items-center gap-1.5 text-xs font-semibold text-brand-primary hover:text-brand-primary/80 transition-colors"
                             >
                                 {showDetails ? "Ocultar detalles" : "Ver detalles técnicos"}
                                 <motion.div animate={{ rotate: showDetails ? 180 : 0 }}>
@@ -118,7 +118,7 @@ export function CookieConsent() {
                         </div>
 
                         <div className="flex flex-col sm:flex-row gap-2">
-                            <Button onClick={handleAccept} className="flex-1 bg-primary hover:bg-primary/90 text-white shadow-lg shadow-primary/20 h-11">
+                            <Button onClick={handleAccept} className="flex-1 bg-brand-primary hover:bg-brand-primary/90 text-white shadow-lg shadow-brand-primary/20 h-11">
                                 Aceptar todas
                             </Button>
                             <Button variant="outline" onClick={handleDecline} className="flex-1 border-slate-200 dark:border-slate-700 h-11 hover:bg-slate-50 dark:hover:bg-slate-800">
@@ -127,7 +127,7 @@ export function CookieConsent() {
                         </div>
 
                         <div className="text-[10px] text-center text-slate-400 pb-1">
-                            Respetamos tu privacidad. Consulta nuestra <a href="/privacy" className="underline hover:text-primary transition-colors">Política de Datos</a>.
+                            Respetamos tu privacidad. Consulta nuestra <a href="/privacy" className="underline hover:text-brand-primary transition-colors">Política de Datos</a>.
                         </div>
                     </div>
                 </motion.div>

@@ -58,8 +58,7 @@ interface ProfileClientProps {
 // ── Helpers ───────────────────────────────────────────────────────────────────
 // DEPRECATED: use context formatCurrency instead
 // const formatCurrency = (amount: number) =>
-//     new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'USD' }).format(amount)
-
+//     new Intl.NumberFormat('es-UY', { style: 'currency', currency: 'UYU' }).format(amount);
 function toDateStr(d: string | Date): string {
     if (typeof d === 'string') return d.split('T')[0]
     return d.toISOString().split('T')[0]
@@ -87,7 +86,7 @@ export function ProfileClient({
 }: ProfileClientProps) {
     const router = useRouter()
     const { logout } = useAuth()
-    const { currency, formatCurrency } = useCurrency()
+    const { formatCurrency } = useCurrency()
 
     // Profile edit state
     const [profile, setProfile] = useState(initialProfile)
@@ -300,11 +299,11 @@ export function ProfileClient({
                             {/* Left: Avatar & Logout */}
                             <div className="md:col-span-1">
                                 <Card className="border-none shadow-md bg-white dark:bg-slate-800 p-6 text-center">
-                                    <div className="h-24 w-24 rounded-full bg-primary/10 flex items-center justify-center text-primary mx-auto mb-4 border-2 border-primary/20 shadow-inner">
+                                    <div className="h-24 w-24 rounded-full bg-brand-primary/10 flex items-center justify-center text-brand-primary mx-auto mb-4 border-2 border-brand-primary/20 shadow-inner">
                                         <User className="h-12 w-12" />
                                     </div>
                                     <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">{profile.name}</h3>
-                                    <Badge variant="outline" className="mt-2 text-primary border-primary/30 uppercase tracking-widest text-[10px]">Administrador</Badge>
+                                    <Badge variant="outline" className="mt-2 text-brand-primary border-brand-primary/30 uppercase tracking-widest text-[10px]">Administrador</Badge>
                                     <div className="mt-8 space-y-2">
                                         <Button variant="outline" className="w-full text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600" onClick={logout}>
                                             <LogOut className="mr-2 h-4 w-4" /> Cerrar Sesión
@@ -318,7 +317,7 @@ export function ProfileClient({
                                 <Card className="border-none shadow-md overflow-hidden">
                                     <CardHeader className="bg-slate-50 dark:bg-slate-800/50 border-b">
                                         <CardTitle className="text-lg flex items-center gap-2">
-                                            <User className="h-5 w-5 text-primary" /> Información de la Cuenta
+                                            <User className="h-5 w-5 text-brand-primary" /> Información de la Cuenta
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="p-6 space-y-4">
@@ -330,7 +329,7 @@ export function ProfileClient({
                                             <Label htmlFor="admin-email">Correo Electrónico</Label>
                                             <Input id="admin-email" type="email" value={profile.email} onChange={e => setProfile({ ...profile, email: e.target.value })} />
                                         </div>
-                                        <Button onClick={handleSaveProfile} disabled={isSavingProfile} className="bg-primary hover:bg-primary/90">
+                                        <Button onClick={handleSaveProfile} disabled={isSavingProfile} className="bg-brand-primary text-white hover:bg-brand-primary/90">
                                             <Save className="mr-2 h-4 w-4" />
                                             {isSavingProfile ? "Guardando..." : "Guardar Cambios"}
                                         </Button>
@@ -340,7 +339,7 @@ export function ProfileClient({
                                 <Card className="border-none shadow-md overflow-hidden">
                                     <CardHeader className="bg-slate-50 dark:bg-slate-800/50 border-b">
                                         <CardTitle className="text-lg flex items-center gap-2">
-                                            <Lock className="h-5 w-5 text-primary" /> Seguridad
+                                            <Lock className="h-5 w-5 text-brand-primary" /> Seguridad
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="p-6">
@@ -381,7 +380,7 @@ export function ProfileClient({
                         <p className="text-slate-500 text-sm">Este es tu resumen de actividad y pagos en Atria Fitness.</p>
                     </div>
                     <div className="flex items-center gap-3">
-                        <Badge className="px-4 py-1.5 bg-primary/10 text-primary border-primary/20 text-sm">Instructor Activo</Badge>
+                        <Badge className="px-4 py-1.5 bg-brand-primary/10 text-brand-primary border-brand-primary/20 text-sm">Instructor Activo</Badge>
                         <Button variant="outline" size="sm" className="text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600" onClick={logout}>
                             <LogOut className="mr-2 h-4 w-4" /> Salir
                         </Button>
@@ -394,7 +393,7 @@ export function ProfileClient({
                         <Card className="overflow-hidden border-none shadow-md bg-linear-to-br from-slate-900 to-slate-800 text-white">
                             <CardContent className="p-6">
                                 <div className="flex items-center gap-4 mb-6">
-                                    <div className="h-16 w-16 rounded-full bg-primary/20 flex items-center justify-center text-primary text-2xl font-bold border-2 border-primary/30">
+                                    <div className="h-16 w-16 rounded-full bg-brand-primary/20 flex items-center justify-center text-brand-primary text-2xl font-bold border-2 border-brand-primary/30">
                                         {profile.name.charAt(0)}
                                     </div>
                                     <div>
@@ -404,11 +403,11 @@ export function ProfileClient({
                                 </div>
                                 <div className="space-y-4">
                                     <div className="flex items-center gap-3">
-                                        <Mail className="h-4 w-4 text-primary" />
+                                        <Mail className="h-4 w-4 text-brand-primary" />
                                         <span className="text-sm opacity-90">{profile.email || "No registrado"}</span>
                                     </div>
                                     <div className="flex items-center gap-3">
-                                        <Phone className="h-4 w-4 text-primary" />
+                                        <Phone className="h-4 w-4 text-brand-primary" />
                                         <span className="text-sm opacity-90">{profile.phone || "No registrado"}</span>
                                     </div>
                                 </div>
@@ -433,7 +432,7 @@ export function ProfileClient({
                         <Card className="border-none shadow-md bg-white dark:bg-slate-800">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-sm flex items-center gap-2">
-                                    <CalendarIcon className="h-4 w-4 text-primary" /> Mi Agenda Hoy
+                                    <CalendarIcon className="h-4 w-4 text-brand-primary" /> Mi Agenda Hoy
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="space-y-3">
@@ -458,7 +457,7 @@ export function ProfileClient({
                         <Card className="border-none shadow-md">
                             <CardHeader className="pb-2">
                                 <CardTitle className="text-sm flex items-center gap-2">
-                                    <Wallet className="h-4 w-4 text-primary" /> Próximo Cobro Estimado
+                                    <Wallet className="h-4 w-4 text-brand-primary" /> Próximo Cobro Estimado
                                 </CardTitle>
                             </CardHeader>
                             <CardContent>
@@ -468,7 +467,7 @@ export function ProfileClient({
                                 <p className="text-[10px] text-slate-500 mt-1">
                                     Basado en {payrollData.totalClasses} clases realizadas en el periodo actual.
                                 </p>
-                                <Button className="w-full mt-4 bg-primary/10 text-primary hover:bg-primary/20 border-none h-9 text-xs" onClick={() => router.push('/dashboard/calendar')}>
+                                <Button className="w-full mt-4 bg-brand-primary/10 text-brand-primary hover:bg-brand-primary/20 border-none h-9 text-xs" onClick={() => router.push('/dashboard/calendar')}>
                                     Ver mi agenda
                                 </Button>
                             </CardContent>
@@ -479,13 +478,13 @@ export function ProfileClient({
                     <div className="lg:col-span-2 space-y-6">
                         <Tabs defaultValue="payroll" className="w-full">
                             <TabsList className="bg-white dark:bg-slate-800 p-1 rounded-xl shadow-sm border h-11">
-                                <TabsTrigger value="payroll" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white h-9 px-5">
+                                <TabsTrigger value="payroll" className="rounded-lg data-[state=active]:bg-brand-primary data-[state=active]:text-white h-9 px-5">
                                     Pagos Pendientes
                                 </TabsTrigger>
-                                <TabsTrigger value="history" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white h-9 px-5">
+                                <TabsTrigger value="history" className="rounded-lg data-[state=active]:bg-brand-primary data-[state=active]:text-white h-9 px-5">
                                     Historial
                                 </TabsTrigger>
-                                <TabsTrigger value="security" className="rounded-lg data-[state=active]:bg-primary data-[state=active]:text-white h-9 px-5">
+                                <TabsTrigger value="security" className="rounded-lg data-[state=active]:bg-brand-primary data-[state=active]:text-white h-9 px-5">
                                     Seguridad
                                 </TabsTrigger>
                             </TabsList>
@@ -553,7 +552,7 @@ export function ProfileClient({
                                 <Card className="border-none shadow-sm">
                                     <CardHeader>
                                         <CardTitle className="text-lg flex items-center gap-2">
-                                            <History className="h-5 w-5 text-primary" /> Historial de Liquidaciones
+                                            <History className="h-5 w-5 text-brand-primary" /> Historial de Liquidaciones
                                         </CardTitle>
                                         <CardDescription className="text-xs">Registro histórico de pagos realizados por Atria.</CardDescription>
                                     </CardHeader>
@@ -590,7 +589,7 @@ export function ProfileClient({
                                                                     </TableCell>
                                                                     <TableCell className="text-right font-bold text-green-600 text-sm">{formatCurrency(p.amount)}</TableCell>
                                                                     <TableCell className="text-right">
-                                                                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary">
+                                                                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-brand-primary/10 hover:text-brand-primary">
                                                                             <Eye className="h-4 w-4" />
                                                                         </Button>
                                                                     </TableCell>
@@ -609,7 +608,7 @@ export function ProfileClient({
                                 <Card className="border-none shadow-sm overflow-hidden">
                                     <CardHeader className="bg-slate-50 dark:bg-slate-800/50 border-b">
                                         <CardTitle className="text-lg flex items-center gap-2">
-                                            <Lock className="h-5 w-5 text-primary" /> Cambiar Contraseña
+                                            <Lock className="h-5 w-5 text-brand-primary" /> Cambiar Contraseña
                                         </CardTitle>
                                     </CardHeader>
                                     <CardContent className="p-6">
@@ -640,7 +639,7 @@ export function ProfileClient({
                     <DialogContent className="max-w-2xl">
                         <DialogHeader>
                             <DialogTitle className="flex items-center gap-2">
-                                <History className="h-5 w-5 text-primary" /> Detalles de Liquidación
+                                <History className="h-5 w-5 text-brand-primary" /> Detalles de Liquidación
                             </DialogTitle>
                             <DialogDescription>
                                 Comprobante de pago generado el {selectedPayment && format(parseISO(toDateStr(selectedPayment.date)), "dd 'de' MMMM, yyyy")}
@@ -701,15 +700,15 @@ export function ProfileClient({
                                 </div>
 
                                 {selectedPayment.notes && (
-                                    <div className="bg-primary/5 p-3 rounded-lg border border-primary/10">
-                                        <p className="text-[10px] uppercase text-primary font-bold mb-1">Notas</p>
+                                    <div className="bg-brand-primary/5 p-3 rounded-lg border border-brand-primary/10">
+                                        <p className="text-[10px] uppercase text-brand-primary font-bold mb-1">Notas</p>
                                         <p className="text-xs italic text-slate-600 dark:text-slate-300">{selectedPayment.notes}</p>
                                     </div>
                                 )}
 
                                 <div className="flex justify-end gap-2">
                                     <Button variant="outline" onClick={() => setIsDetailsOpen(false)}>Cerrar</Button>
-                                    <Button className="bg-primary" onClick={() => selectedPayment && printVoucher(selectedPayment)}>Imprimir Comprobante</Button>
+                                    <Button className="bg-brand-primary text-white hover:bg-brand-primary/90" onClick={() => selectedPayment && printVoucher(selectedPayment)}>Imprimir Comprobante</Button>
                                 </div>
                             </div>
                         )}

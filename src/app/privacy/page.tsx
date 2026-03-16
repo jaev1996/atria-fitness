@@ -13,16 +13,16 @@ export default function PrivacyPage() {
             <header className="bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10">
                 <div className="max-w-4xl mx-auto px-6 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
-                            <Shield className="h-4 w-4 text-primary" />
+                        <div className="h-8 w-8 rounded-full bg-brand-primary/10 flex items-center justify-center">
+                            <Shield className="h-4 w-4 text-brand-primary" />
                         </div>
                         <span className="font-bold text-slate-800 dark:text-slate-100 text-lg tracking-tight">
-                            Atria <span className="text-primary">Fitness</span>
+                            Atria <span className="text-brand-primary">Fitness</span>
                         </span>
                     </div>
                     <Link
                         href="/login"
-                        className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-primary transition-colors"
+                        className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-primary transition-colors"
                     >
                         <ArrowLeft className="h-4 w-4" />
                         Volver
@@ -35,7 +35,7 @@ export default function PrivacyPage() {
                 <div className="mb-10">
                     <h1 className="text-4xl font-extrabold text-slate-900 dark:text-slate-50 tracking-tight">
                         Política de Privacidad
-                        <span className="block text-primary text-2xl font-semibold mt-1">y Cookies</span>
+                        <span className="block text-brand-primary text-2xl font-semibold mt-1">y Cookies</span>
                     </h1>
                     <p className="text-slate-500 mt-3 text-sm">Última actualización: Marzo 2026</p>
                 </div>
@@ -43,7 +43,7 @@ export default function PrivacyPage() {
                 <div className="grid gap-6">
                     {/* Protection */}
                     <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                        <div className="flex items-center gap-3 mb-4 text-primary">
+                        <div className="flex items-center gap-3 mb-4 text-brand-primary">
                             <Shield className="h-6 w-6 shrink-0" />
                             <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Protección de Datos</h2>
                         </div>
@@ -56,7 +56,7 @@ export default function PrivacyPage() {
 
                     {/* Cookies */}
                     <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                        <div className="flex items-center gap-3 mb-4 text-primary">
+                        <div className="flex items-center gap-3 mb-4 text-brand-primary">
                             <Cookie className="h-6 w-6 shrink-0" />
                             <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Uso de Cookies</h2>
                         </div>
@@ -67,7 +67,7 @@ export default function PrivacyPage() {
                                 <li>Recordar tus preferencias de interfaz (tema, idioma).</li>
                                 <li>Garantizar la seguridad de cada solicitud autenticada.</li>
                             </ul>
-                            <p className="text-sm border-l-4 border-primary/30 pl-4 py-1 italic text-slate-500 bg-primary/5 rounded-r-lg">
+                            <p className="text-sm border-l-4 border-brand-primary/30 pl-4 py-1 italic text-slate-500 bg-brand-primary/5 rounded-r-lg">
                                 Las cookies de sesión son <strong>estrictamente necesarias</strong> — el sistema no puede verificar
                                 tu identidad sin ellas. No usamos cookies de seguimiento o publicidad de terceros.
                             </p>
@@ -76,21 +76,21 @@ export default function PrivacyPage() {
 
                     {/* JWT */}
                     <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                        <div className="flex items-center gap-3 mb-4 text-primary">
+                        <div className="flex items-center gap-3 mb-4 text-brand-primary">
                             <Lock className="h-6 w-6 shrink-0" />
                             <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Seguridad JWT</h2>
                         </div>
                         <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
                             Utilizamos JSON Web Tokens (JWT) cifrados para el manejo de sesiones. Estos tokens residen en
                             cookies seguras de tipo{" "}
-                            <code className="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-xs font-mono text-primary">HttpOnly</code>
+                            <code className="bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-xs font-mono text-brand-primary">HttpOnly</code>
                             , lo que impide que sean accesibles o robados por scripts maliciosos en el navegador (XSS).
                         </p>
                     </section>
 
                     {/* Rights */}
                     <section className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                        <div className="flex items-center gap-3 mb-4 text-primary">
+                        <div className="flex items-center gap-3 mb-4 text-brand-primary">
                             <Eye className="h-6 w-6 shrink-0" />
                             <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Tus Derechos</h2>
                         </div>

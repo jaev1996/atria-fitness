@@ -56,7 +56,7 @@ export default function StatsPage() {
 
     if (authLoading) return (
         <div className="flex h-screen flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 gap-4 text-slate-500">
-            <Loader2 className="h-10 w-10 animate-spin text-primary" />
+            <Loader2 className="h-10 w-10 animate-spin text-brand-primary" />
             <p className="italic text-sm animate-pulse">Verificando permisos...</p>
         </div>
     );
@@ -121,7 +121,7 @@ export default function StatsPage() {
                 {/* Header */}
                 <header className="bg-white dark:bg-slate-800 border-b p-4 md:p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
                     <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-                        <TrendingUp className="h-6 w-6 text-primary" />
+                        <TrendingUp className="h-6 w-6 text-brand-primary" />
                         Reportes y Métricas
                     </h1>
 

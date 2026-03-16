@@ -158,8 +158,8 @@ export default function DashboardPage() {
                                         className="flex items-center justify-between rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-xs hover:shadow-sm transition-shadow"
                                     >
                                         <div className="flex items-center gap-4">
-                                            <div className="bg-primary/10 p-2 rounded-full shrink-0">
-                                                <Clock className="h-5 w-5 text-primary" />
+                                            <div className="bg-brand-primary/10 p-2 rounded-full shrink-0">
+                                                <Clock className="h-5 w-5 text-brand-primary" />
                                             </div>
                                             <div className="min-w-0">
                                                 <p className="font-semibold text-slate-800 dark:text-slate-100 truncate">
@@ -167,7 +167,7 @@ export default function DashboardPage() {
                                                 </p>
                                                 <p className="text-sm text-slate-500 truncate">
                                                     {role === "admin" && (
-                                                        <span className="text-primary font-medium">{c.instructorName} • </span>
+                                                        <span className="text-brand-primary font-medium">{c.instructorName} • </span>
                                                     )}
                                                     <span className="capitalize">
                                                         {ROOM_LABELS[c.room] ?? c.room}
