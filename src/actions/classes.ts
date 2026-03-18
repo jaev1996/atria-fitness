@@ -209,6 +209,7 @@ async function handleClassCompletion(classId: string) {
                         studentId: student.id,
                         activity: `Clase Completada: ${classData.type}`,
                         notes: `Instructor: ${classData.instructor.name}`,
+                        classDate: classData.date,
                         cost: 0
                     }
                 })

@@ -104,13 +104,14 @@ model StudentPayment {
 }
 
 model StudentHistory {
-  id        String   @id @default(cuid())
+  id        String    @id @default(cuid())
   studentId String
-  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  date      DateTime @default(now())
+  student   User      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  date      DateTime  @default(now())  // Fecha de registro en el sistema (cierre)
+  classDate DateTime?                  // Fecha real en que se realizó la clase
   activity  String
   notes     String?
-  cost      Float    @default(0)
+  cost      Float     @default(0)
 }
 
 model ClassSession {

@@ -46,6 +46,11 @@ export default function StudentDetailsPage() {
     const [historyPage, setHistoryPage] = useState(1)
     const ITEMS_PER_PAGE = 10
 
+    // Filters for History
+    const [historySearch, setHistorySearch] = useState('')
+    const [historyDateFrom, setHistoryDateFrom] = useState('')
+    const [historyDateTo, setHistoryDateTo] = useState('')
+
     // Edit Modals State
     const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false)
     const [isMedicalDialogOpen, setIsMedicalDialogOpen] = useState(false)
@@ -778,80 +783,151 @@ export default function StudentDetailsPage() {
                                 )}
                             </CardHeader>
                             <CardContent>
-                                <Table>
-                                    <TableHeader>
-                                        <TableRow>
-                                            <TableHead>Fecha</TableHead>
-                                            <TableHead>Actividad</TableHead>
-                                            <TableHead>Valor</TableHead>
-                                            <TableHead className="text-right">Acciones</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {student.history.length === 0 ? (
-                                            <TableRow>
-                                                <TableCell colSpan={4} className="text-center py-8 text-slate-500">
-                                                    No hay historial registrado.
-                                                </TableCell>
-                                            </TableRow>
-                                        ) : (
-                                            student.history
-                                                .slice()
-                                                .reverse()
-                                                .slice((historyPage - 1) * ITEMS_PER_PAGE, historyPage * ITEMS_PER_PAGE)
-                                                .map((entry) => (
-                                                    <TableRow key={entry.id}>
-                                                        <TableCell className="font-medium whitespace-nowrap">{new Date(entry.date).toLocaleDateString()}</TableCell>
-                                                        <TableCell>
-                                                            <div>{entry.activity}</div>
-                                                            {entry.notes && (
-                                                                <div className="text-xs text-slate-400">
-                                                                    {entry.notes.includes('ID: ') ? 'Instructor Registrado' : entry.notes}
-                                                                </div>
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell className="font-medium text-green-600">
-                                                            {entry.cost > 0 ? formatCurrency(entry.cost) : '-'}
-                                                        </TableCell>
-                                                        <TableCell className="text-right">
-                                                            {role === 'admin' && (
-                                                                <Button variant="ghost" size="sm" onClick={() => handleDeleteEntry(entry.id)}>
-                                                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                                                </Button>
-                                                            )}
-                                                        </TableCell>
-                                                    </TableRow>
-                                                ))
-                                        )}
-                                    </TableBody>
-                                </Table>
-
-                                {/* PAGINATION CONTROLS */}
-                                {student.history.length > ITEMS_PER_PAGE && (
-                                    <div className="flex items-center justify-between mt-4 px-2">
-                                        <div className="text-xs text-slate-500">
-                                            Mostrando {(historyPage - 1) * ITEMS_PER_PAGE + 1} - {Math.min(historyPage * ITEMS_PER_PAGE, student.history.length)} de {student.history.length}
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
-                                                disabled={historyPage === 1}
-                                            >
-                                                <ChevronLeft className="h-4 w-4" />
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() => setHistoryPage(p => Math.min(Math.ceil(student.history.length / ITEMS_PER_PAGE), p + 1))}
-                                                disabled={historyPage >= Math.ceil(student.history.length / ITEMS_PER_PAGE)}
-                                            >
-                                                <ChevronRight className="h-4 w-4" />
-                                            </Button>
-                                        </div>
+                                {/* FILTER PANEL */}
+                                <div className="flex flex-wrap gap-2 mb-4 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                                    <Input
+                                        placeholder="Buscar actividad..."
+                                        value={historySearch}
+                                        onChange={(e) => { setHistorySearch(e.target.value); setHistoryPage(1) }}
+                                        className="h-8 text-sm w-44"
+                                    />
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-xs text-slate-500 whitespace-nowrap">Clase desde</span>
+                                        <Input
+                                            type="date"
+                                            value={historyDateFrom}
+                                            onChange={(e) => { setHistoryDateFrom(e.target.value); setHistoryPage(1) }}
+                                            className="h-8 text-sm w-36"
+                                        />
                                     </div>
-                                )}
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="text-xs text-slate-500 whitespace-nowrap">hasta</span>
+                                        <Input
+                                            type="date"
+                                            value={historyDateTo}
+                                            onChange={(e) => { setHistoryDateTo(e.target.value); setHistoryPage(1) }}
+                                            className="h-8 text-sm w-36"
+                                        />
+                                    </div>
+                                    {(historySearch || historyDateFrom || historyDateTo) && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            className="h-8 text-xs text-slate-500 hover:text-slate-700"
+                                            onClick={() => { setHistorySearch(''); setHistoryDateFrom(''); setHistoryDateTo(''); setHistoryPage(1) }}
+                                        >
+                                            Limpiar filtros
+                                        </Button>
+                                    )}
+                                </div>
+
+                                {/* TABLE */}
+                                {(() => {
+                                    const filtered = student.history
+                                        .slice()
+                                        .reverse()
+                                        .filter(entry => {
+                                            if (historySearch && !entry.activity.toLowerCase().includes(historySearch.toLowerCase())) return false
+                                            // Filter by class date (classDate) if available, otherwise fall back to registration date
+                                            const entryDate = (entry as unknown as { classDate: Date | null }).classDate || entry.date
+                                            if (historyDateFrom && new Date(entryDate) < new Date(`${historyDateFrom}T00:00:00`)) return false
+                                            if (historyDateTo && new Date(entryDate) > new Date(`${historyDateTo}T23:59:59`)) return false
+                                            return true
+                                        })
+                                    const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE)
+                                    const paginated = filtered.slice((historyPage - 1) * ITEMS_PER_PAGE, historyPage * ITEMS_PER_PAGE)
+
+                                    return (
+                                        <>
+                                            <Table>
+                                                <TableHeader>
+                                                    <TableRow>
+                                                        <TableHead className="whitespace-nowrap">Fecha Clase</TableHead>
+                                                        <TableHead className="whitespace-nowrap">Fecha de Cierre</TableHead>
+                                                        <TableHead>Actividad</TableHead>
+                                                        <TableHead>Valor</TableHead>
+                                                        <TableHead className="text-right">Acciones</TableHead>
+                                                    </TableRow>
+                                                </TableHeader>
+                                                <TableBody>
+                                                    {paginated.length === 0 ? (
+                                                        <TableRow>
+                                                            <TableCell colSpan={5} className="text-center py-8 text-slate-500">
+                                                                {student.history.length === 0 ? 'No hay historial registrado.' : 'No hay resultados con los filtros aplicados.'}
+                                                            </TableCell>
+                                                        </TableRow>
+                                                    ) : (
+                                                        paginated.map((entry) => {
+                                                            const classDate = (entry as unknown as { classDate: Date | null }).classDate
+                                                            return (
+                                                                <TableRow key={entry.id}>
+                                                                    <TableCell className="font-medium whitespace-nowrap">
+                                                                        {classDate
+                                                                            ? <span className="text-brand-primary font-semibold">{new Date(classDate).toLocaleDateString()}</span>
+                                                                            : <span className="text-slate-400">-</span>
+                                                                        }
+                                                                    </TableCell>
+                                                                    <TableCell className="whitespace-nowrap text-slate-500 text-xs">
+                                                                        {new Date(entry.date).toLocaleDateString()}
+                                                                    </TableCell>
+                                                                    <TableCell>
+                                                                        <div>{entry.activity}</div>
+                                                                        {entry.notes && (
+                                                                            <div className="text-xs text-slate-400">
+                                                                                {entry.notes.includes('ID: ') ? 'Instructor Registrado' : entry.notes}
+                                                                            </div>
+                                                                        )}
+                                                                    </TableCell>
+                                                                    <TableCell className="font-medium text-green-600">
+                                                                        {entry.cost > 0 ? formatCurrency(entry.cost) : '-'}
+                                                                    </TableCell>
+                                                                    <TableCell className="text-right">
+                                                                        {role === 'admin' && (
+                                                                            <Button variant="ghost" size="sm" onClick={() => handleDeleteEntry(entry.id)}>
+                                                                                <Trash2 className="h-4 w-4 text-destructive" />
+                                                                            </Button>
+                                                                        )}
+                                                                    </TableCell>
+                                                                </TableRow>
+                                                            )
+                                                        })
+                                                    )}
+                                                </TableBody>
+                                            </Table>
+
+                                            {/* PAGINATION CONTROLS */}
+                                            {filtered.length > ITEMS_PER_PAGE && (
+                                                <div className="flex items-center justify-between mt-4 px-2">
+                                                    <div className="text-xs text-slate-500">
+                                                        Mostrando {(historyPage - 1) * ITEMS_PER_PAGE + 1}–{Math.min(historyPage * ITEMS_PER_PAGE, filtered.length)} de {filtered.length}
+                                                        {(historySearch || historyDateFrom || historyDateTo) && ` (filtrado de ${student.history.length})`}
+                                                    </div>
+                                                    <div className="flex gap-2">
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                                                            disabled={historyPage === 1}
+                                                        >
+                                                            <ChevronLeft className="h-4 w-4" />
+                                                        </Button>
+                                                        <span className="flex items-center text-xs text-slate-500 px-1">
+                                                            {historyPage} / {totalPages}
+                                                        </span>
+                                                        <Button
+                                                            variant="outline"
+                                                            size="sm"
+                                                            onClick={() => setHistoryPage(p => Math.min(totalPages, p + 1))}
+                                                            disabled={historyPage >= totalPages}
+                                                        >
+                                                            <ChevronRight className="h-4 w-4" />
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </>
+                                    )
+                                })()}
                             </CardContent>
                         </Card>
                     </div>
