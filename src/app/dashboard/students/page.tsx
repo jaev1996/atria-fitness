@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Sidebar } from "@/components/shared/sidebar"
 import { MobileNav } from "@/components/shared/mobile-nav"
 import { useAuth } from "@/hooks/useAuth"
@@ -48,7 +49,7 @@ function StudentsContent() {
         emergencyContact: "",
         sportsInfo: "",
         planType: "Sin Plan",
-        discipline: "General"
+        disciplines: ["General"] as string[]
     })
 
     useEffect(() => {
@@ -148,14 +149,14 @@ function StudentsContent() {
                     emergencyContact: newStudent.emergencyContact,
                     sportsInfo: newStudent.sportsInfo,
                     planType: newStudent.planType,
-                    discipline: newStudent.discipline,
+                    disciplines: newStudent.disciplines,
                 })
                 toast.success("Alumna registrada correctamente")
                 setIsDialogOpen(false)
                 setNewStudent({
                     name: "", phone: "", email: "",
                     medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "",
-                    sportsInfo: "", planType: "Sin Plan", discipline: "General"
+                    sportsInfo: "", planType: "Sin Plan", disciplines: ["General"]
                 })
                 // trigger a refresh of the list
                 const refreshed = await getStudents()
@@ -344,19 +345,48 @@ function StudentsContent() {
                                             </Select>
                                         </div>
                                         {newStudent.planType !== "Sin Plan" && (
-                                            <div className="grid gap-2">
-                                                <Label htmlFor="discipline">Disciplina del Plan</Label>
-                                                <Select value={newStudent.discipline} onValueChange={(v) => setNewStudent({ ...newStudent, discipline: v })}>
-                                                    <SelectTrigger>
-                                                        <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                        <SelectItem value="General">General (Todas)</SelectItem>
-                                                        {DISCIPLINES.map(d => (
-                                                            <SelectItem key={d} value={d}>{d}</SelectItem>
-                                                        ))}
-                                                    </SelectContent>
-                                                </Select>
+                                            <div className="grid gap-2 col-span-2 border-t pt-4">
+                                                <Label className="mb-2">Disciplinas permitidas por el plan *</Label>
+                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800">
+                                                    <div className="flex items-center space-x-2">
+                                                        <Checkbox
+                                                            id="spec-General"
+                                                            checked={newStudent.disciplines.includes("General")}
+                                                            onCheckedChange={(checked) => {
+                                                                if (checked) {
+                                                                    setNewStudent({ ...newStudent, disciplines: ["General"] })
+                                                                } else {
+                                                                    setNewStudent({ ...newStudent, disciplines: [] })
+                                                                }
+                                                            }}
+                                                        />
+                                                        <label htmlFor="spec-General" className="text-sm font-semibold leading-none cursor-pointer text-brand-primary">
+                                                            General (Todas)
+                                                        </label>
+                                                    </div>
+                                                    {DISCIPLINES.map(d => (
+                                                        <div key={d} className="flex items-center space-x-2">
+                                                            <Checkbox
+                                                                id={`spec-${d}`}
+                                                                checked={newStudent.disciplines.includes(d)}
+                                                                onCheckedChange={(checked) => {
+                                                                    let updated = [...newStudent.disciplines]
+                                                                    if (checked) {
+                                                                        // If adding a specific one, remove 'General'
+                                                                        updated = updated.filter(item => item !== "General")
+                                                                        updated.push(d)
+                                                                    } else {
+                                                                        updated = updated.filter(item => item !== d)
+                                                                    }
+                                                                    setNewStudent({ ...newStudent, disciplines: updated })
+                                                                }}
+                                                            />
+                                                            <label htmlFor={`spec-${d}`} className="text-sm font-medium leading-none cursor-pointer">
+                                                                {d}
+                                                            </label>
+                                                        </div>
+                                                    ))}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -503,7 +533,7 @@ function StudentsContent() {
                                                                     variant={p.credits <= 1 ? "destructive" : "secondary"}
                                                                     className="text-[10px] px-1.5 py-0"
                                                                 >
-                                                                    {p.originalName} &quot;{p.discipline}&quot;: {p.credits}
+                                                                    {p.originalName} &quot;{p.disciplines && p.disciplines.length > 0 ? p.disciplines.join(", ") : p.discipline}&quot;: {p.credits}
                                                                 </Badge>
                                                             ))
                                                         ) : (

@@ -57,6 +57,7 @@ export const AddStudentSchema = z.object({
     email: z.string().email('El correo no tiene un formato válido.').max(200).trim().optional().or(z.literal('')),
     planType: z.enum(VALID_PLANS).optional(),
     discipline: z.string().max(100).optional(),
+    disciplines: z.array(z.string().max(100)).optional(),
     status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']).optional(),
     medicalInfo: z.string().max(2000).optional(),
     allergies: z.string().max(500).optional(),
@@ -74,6 +75,7 @@ export const ProcessPaymentSchema = z.object({
     planName: z.string().min(1).max(100),
     credits: z.number().int('Los créditos deben ser un número entero.').positive().max(9999),
     discipline: z.string().max(100).optional(),
+    disciplines: z.array(z.string().max(100)).optional(),
 })
 
 export const AddHistoryEntrySchema = z.object({

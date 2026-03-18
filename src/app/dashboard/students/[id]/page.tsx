@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { getStudent, updateStudent, processStudentPayment, deleteStudentPlan, deleteHistoryEntry, addHistoryEntry } from "@/actions/students"
+import { getStudent, updateStudent, processStudentPayment, deleteStudentPlan, deleteHistoryEntry, addHistoryEntry, updateStudentPlan } from "@/actions/students"
 import { User, StudentPlan, StudentPayment, StudentHistory, StudentStatus, PaymentMethod } from "@prisma/client"
 import { useSubmitting } from "@/hooks/useSubmitting"
 import { Sidebar } from "@/components/shared/sidebar"
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, Trash2, Activity, AlertCircle, HeartPulse, ShieldAlert, Phone, CreditCard, ShoppingBag, Edit, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -38,6 +39,8 @@ export default function StudentDetailsPage() {
     const [isPaymentLoading, setIsPaymentLoading] = useState(false)
     const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false)
     const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
+    const [isEditPlanDialogOpen, setIsEditPlanDialogOpen] = useState(false)
+    const [editingPlan, setEditingPlan] = useState<{ id: string, disciplines: string[] } | null>(null)
 
     // Pagination for History
     const [historyPage, setHistoryPage] = useState(1)
@@ -61,13 +64,13 @@ export default function StudentDetailsPage() {
         credits: number;
         amount: string;
         method: PaymentMethod;
-        discipline: string;
+        disciplines: string[];
     }>({
         planName: "Pack 8 Clases",
         credits: 8,
         amount: "",
         method: "TRANSFERENCIA",
-        discipline: "Pole" // Standardized
+        disciplines: ["Pole"] // Default array
     })
 
     // Edit Forms
@@ -191,7 +194,7 @@ export default function StudentDetailsPage() {
                     method: newPayment.method,
                     planName: newPayment.planName,
                     credits: newPayment.credits,
-                    discipline: newPayment.discipline
+                    disciplines: newPayment.disciplines
                 })
                 toast.success("Pago registrado y plan agregado")
                 setIsPaymentDialogOpen(false)
@@ -200,7 +203,7 @@ export default function StudentDetailsPage() {
                     credits: 8,
                     amount: "",
                     method: "TRANSFERENCIA",
-                    discipline: "Pole"
+                    disciplines: ["Pole"]
                 })
                 loadStudent()
             } catch (err) {
@@ -223,6 +226,23 @@ export default function StudentDetailsPage() {
                     toast.error("Error al eliminar plan")
                 }
             }
+        }
+    }
+
+    const handleUpdatePlan = async () => {
+        if (!editingPlan || !student) return
+        if (editingPlan.disciplines.length === 0) {
+            toast.error("Debes seleccionar al menos una disciplina.")
+            return
+        }
+        try {
+            await submit(() => updateStudentPlan(editingPlan.id, student.id, editingPlan.disciplines))
+            toast.success("Plan actualizado")
+            setIsEditPlanDialogOpen(false)
+            setEditingPlan(null)
+            loadStudent()
+        } catch (err) {
+            toast.error(err instanceof Error ? err.message : "Error al actualizar plan")
         }
     }
 
@@ -372,17 +392,47 @@ export default function StudentDetailsPage() {
                                                 <DialogTitle>Registrar Pago / Nuevo Plan</DialogTitle>
                                             </DialogHeader>
                                             <div className="grid gap-4 py-4">
-                                                <div className="grid gap-2">
-                                                    <Label>Disciplina</Label>
-                                                    <Select value={newPayment.discipline} onValueChange={(v) => setNewPayment({ ...newPayment, discipline: v })}>
-                                                        <SelectTrigger><SelectValue /></SelectTrigger>
-                                                        <SelectContent>
-                                                            {DISCIPLINES.map(d => (
-                                                                <SelectItem key={d} value={d}>{d}</SelectItem>
-                                                            ))}
-                                                            <SelectItem value="General">General (Todas)</SelectItem>
-                                                        </SelectContent>
-                                                    </Select>
+                                                <div className="grid gap-2 border-b pb-4">
+                                                    <Label className="mb-2">Disciplinas permitidas *</Label>
+                                                    <div className="grid grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border">
+                                                        <div className="flex items-center space-x-2">
+                                                            <Checkbox
+                                                                id="pay-spec-General"
+                                                                checked={newPayment.disciplines.includes("General")}
+                                                                onCheckedChange={(checked) => {
+                                                                    if (checked) {
+                                                                        setNewPayment({ ...newPayment, disciplines: ["General"] })
+                                                                    } else {
+                                                                        setNewPayment({ ...newPayment, disciplines: [] })
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <label htmlFor="pay-spec-General" className="text-sm font-semibold leading-none cursor-pointer text-brand-primary">
+                                                                General (Todas)
+                                                            </label>
+                                                        </div>
+                                                        {DISCIPLINES.map(d => (
+                                                            <div key={d} className="flex items-center space-x-2">
+                                                                <Checkbox
+                                                                    id={`pay-spec-${d}`}
+                                                                    checked={newPayment.disciplines.includes(d)}
+                                                                    onCheckedChange={(checked) => {
+                                                                        let updated = [...newPayment.disciplines]
+                                                                        if (checked) {
+                                                                            updated = updated.filter(item => item !== "General")
+                                                                            updated.push(d)
+                                                                        } else {
+                                                                            updated = updated.filter(item => item !== d)
+                                                                        }
+                                                                        setNewPayment({ ...newPayment, disciplines: updated })
+                                                                    }}
+                                                                />
+                                                                <label htmlFor={`pay-spec-${d}`} className="text-sm font-medium leading-none cursor-pointer">
+                                                                    {d}
+                                                                </label>
+                                                            </div>
+                                                        ))}
+                                                    </div>
                                                 </div>
                                                 <div className="grid gap-2">
                                                     <Label>Tipo de Plan</Label>
@@ -440,6 +490,67 @@ export default function StudentDetailsPage() {
                                         </DialogContent>
                                     </Dialog>
                                 )}
+
+                                {/* Edit Plan Disciplines Dialog — admin only */}
+                                {role === 'admin' && (
+                                    <Dialog open={isEditPlanDialogOpen} onOpenChange={setIsEditPlanDialogOpen}>
+                                        <DialogContent>
+                                            <DialogHeader>
+                                                <DialogTitle>Editar Disciplinas del Plan</DialogTitle>
+                                            </DialogHeader>
+                                            <div className="grid gap-4 py-4">
+                                                <div className="grid gap-2">
+                                                    <Label className="mb-2">Disciplinas permitidas *</Label>
+                                                    <div className="grid grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border">
+                                                        <div className="flex items-center space-x-2">
+                                                            <Checkbox
+                                                                id="edit-spec-General"
+                                                                checked={editingPlan?.disciplines.includes("General") ?? false}
+                                                                onCheckedChange={(checked) => {
+                                                                    if (checked) {
+                                                                        setEditingPlan({ ...editingPlan!, disciplines: ["General"] })
+                                                                    } else {
+                                                                        setEditingPlan({ ...editingPlan!, disciplines: [] })
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <label htmlFor="edit-spec-General" className="text-sm font-semibold leading-none cursor-pointer text-brand-primary">
+                                                                General (Todas)
+                                                            </label>
+                                                        </div>
+                                                        {DISCIPLINES.map(d => (
+                                                            <div key={d} className="flex items-center space-x-2">
+                                                                <Checkbox
+                                                                    id={`edit-spec-${d}`}
+                                                                    checked={editingPlan?.disciplines.includes(d) ?? false}
+                                                                    onCheckedChange={(checked) => {
+                                                                        let updated = [...(editingPlan?.disciplines || [])]
+                                                                        if (checked) {
+                                                                            updated = updated.filter(item => item !== "General")
+                                                                            updated.push(d)
+                                                                        } else {
+                                                                            updated = updated.filter(item => item !== d)
+                                                                        }
+                                                                        setEditingPlan({ ...editingPlan!, disciplines: updated })
+                                                                    }}
+                                                                />
+                                                                <label htmlFor={`edit-spec-${d}`} className="text-sm font-medium leading-none cursor-pointer">
+                                                                    {d}
+                                                                </label>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <DialogFooter>
+                                                <Button variant="outline" onClick={() => setIsEditPlanDialogOpen(false)}>Cancelar</Button>
+                                                <Button onClick={handleUpdatePlan} disabled={isFormSaving}>
+                                                    {isFormSaving ? "Guardando..." : "Guardar Cambios"}
+                                                </Button>
+                                            </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
+                                )}
                             </CardHeader>
                             <CardContent className="space-y-4">
                                 {(student.plans && student.plans.length > 0) ? (
@@ -450,7 +561,7 @@ export default function StudentDetailsPage() {
                                                 <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase",
                                                     plan.isActive ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
                                                 )}>
-                                                    {plan.discipline}
+                                                    {plan.disciplines && plan.disciplines.length > 0 ? plan.disciplines.join(", ") : plan.discipline}
                                                 </span>
                                             </div>
                                             <div className="flex justify-between text-xs text-slate-500 mb-1">
@@ -460,9 +571,22 @@ export default function StudentDetailsPage() {
                                                         {plan.credits > 900 ? "∞" : plan.credits}
                                                     </span>
                                                     {role === 'admin' && (
-                                                        <Button variant="ghost" size="icon" className="h-4 w-4 text-destructive hover:bg-destructive/10" onClick={() => handleDeletePlan(plan.id)}>
-                                                            <Trash2 className="h-3 w-3" />
-                                                        </Button>
+                                                        <div className="flex items-center gap-1">
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="h-6 w-6 text-brand-primary hover:bg-brand-primary/10"
+                                                                onClick={() => {
+                                                                    setEditingPlan({ id: plan.id, disciplines: plan.disciplines as string[] });
+                                                                    setIsEditPlanDialogOpen(true);
+                                                                }}
+                                                            >
+                                                                <Edit className="h-3 w-3" />
+                                                            </Button>
+                                                            <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:bg-destructive/10" onClick={() => handleDeletePlan(plan.id)}>
+                                                                <Trash2 className="h-3 w-3" />
+                                                            </Button>
+                                                        </div>
                                                     )}
                                                 </div>
                                             </div>

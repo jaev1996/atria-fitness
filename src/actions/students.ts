@@ -103,11 +103,12 @@ export async function addStudent(data: {
     injuries?: string,
     conditions?: string,
     emergencyContact?: string,
-    sportsInfo?: string
+    sportsInfo?: string,
+    disciplines?: string[]
 }) {
     await ensureRole(['admin'])
     const parsed = AddStudentSchema.parse(data)
-    const { planType, discipline, ...studentData } = parsed
+    const { planType, discipline, disciplines, ...studentData } = parsed
 
     // Generate placeholder email if not provided
     const email = data.email || `${data.phone.replace(/\s/g, '')}@atria-user.com`
@@ -155,10 +156,16 @@ export async function addStudent(data: {
         if (planType === 'Pack 24 Clases') credits = 24
         if (planType === 'Pack 8 Clases') credits = 8
 
+        const finalDisciplines = disciplines || (discipline ? [discipline] : ['General'])
+        let legacyDiscipline = discipline || 'General'
+        if (finalDisciplines.length > 1) legacyDiscipline = 'Múltiples'
+        if (finalDisciplines.includes('General')) legacyDiscipline = 'General'
+
         await prisma.studentPlan.create({
             data: {
                 studentId: student.id,
-                discipline: discipline || 'General',
+                discipline: legacyDiscipline,
+                disciplines: finalDisciplines,
                 credits,
                 originalName: planType,
                 isActive: true
@@ -212,6 +219,7 @@ export async function deleteStudent(id: string) {
 export async function deleteStudentPlan(planId: string, studentId: string) {
     await ensureRole(['admin'])
     await prisma.studentPlan.delete({ where: { id: planId } })
+    revalidatePath('/dashboard/students')
     revalidatePath(`/dashboard/students/${studentId}`)
 }
 
@@ -221,6 +229,30 @@ export async function deleteHistoryEntry(entryId: string, studentId: string) {
     revalidatePath(`/dashboard/students/${studentId}`)
 }
 
+export async function updateStudentPlan(planId: string, studentId: string, disciplines: string[]) {
+    await ensureRole(['admin'])
+
+    // Validate input: at least one discipline must be selected
+    if (!Array.isArray(disciplines) || disciplines.length === 0) {
+        throw new Error('Debes seleccionar al menos una disciplina.')
+    }
+
+    let legacyDiscipline = disciplines.length > 1 ? 'Múltiples' : (disciplines[0] || 'General')
+    if (disciplines.includes('General')) legacyDiscipline = 'General'
+
+    const updated = await prisma.studentPlan.update({
+        where: { id: planId },
+        data: {
+            disciplines,
+            discipline: legacyDiscipline
+        }
+    })
+
+    revalidatePath('/dashboard/students')
+    revalidatePath(`/dashboard/students/${studentId}`)
+    return updated
+}
+
 // Student Payments / History
 export async function processStudentPayment(data: {
     studentId: string,
@@ -228,7 +260,8 @@ export async function processStudentPayment(data: {
     method: PaymentMethod,
     planName: string,
     credits: number,
-    discipline?: string
+    discipline?: string,
+    disciplines?: string[]
 }) {
     await ensureRole(['admin'])
     ProcessPaymentSchema.parse(data)
@@ -260,7 +293,10 @@ export async function processStudentPayment(data: {
         prisma.studentPlan.create({
             data: {
                 studentId: data.studentId,
-                discipline: data.discipline || 'General',
+                discipline: data.disciplines && data.disciplines.length > 1 
+                    ? 'Múltiples' 
+                    : (data.disciplines?.[0] || data.discipline || 'General'),
+                disciplines: data.disciplines || (data.discipline ? [data.discipline] : ['General']),
                 credits: data.credits,
                 originalName: data.planName,
                 isActive: true

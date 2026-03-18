@@ -188,7 +188,7 @@ async function handleClassCompletion(classId: string) {
 
         // Find valid plan
         const plan = student.plans.find(p =>
-            p.discipline === classData.type || p.discipline === 'General'
+            p.disciplines.includes(classData.type) || p.disciplines.includes('General')
         )
 
         if (plan && plan.credits > 0) {
@@ -285,7 +285,7 @@ export async function enrollStudent(classId: string, studentId: string, type: 'S
         if (!student) throw new Error("Alumna no encontrada")
 
         const hasValidPlan = student.plans.some(p =>
-            p.discipline === classData.type || p.discipline === 'General'
+            p.disciplines.includes(classData.type) || p.disciplines.includes('General')
         )
         if (!hasValidPlan) {
             throw new Error(
