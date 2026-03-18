@@ -18,7 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { ArrowLeft, Trash2, Activity, AlertCircle, HeartPulse, ShieldAlert, Phone, CreditCard, ShoppingBag, Edit, ChevronLeft, ChevronRight, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
+import { cn, formatDateUTC, formatDateLocal } from "@/lib/utils"
 import { useAuth } from "@/hooks/useAuth"
 import { DISCIPLINES } from "@/constants/config"
 import { useCurrency } from "@/components/providers/CurrencyProvider"
@@ -620,7 +620,7 @@ export default function StudentDetailsPage() {
                                                 <div key={p.id} className="flex justify-between items-center text-sm border-b pb-2 last:border-0 last:pb-0">
                                                     <div>
                                                         <div className="font-medium">{p.concept}</div>
-                                                        <div className="text-xs text-slate-500">{new Date(p.date).toLocaleDateString()} • {p.method}</div>
+                                                         <div className="text-xs text-slate-500">{formatDateLocal(p.date)} • {p.method}</div>
                                                     </div>
                                                     <div className="font-bold text-green-600">{formatCurrency(p.amount)}</div>
                                                 </div>
@@ -863,12 +863,12 @@ export default function StudentDetailsPage() {
                                                                 <TableRow key={entry.id}>
                                                                     <TableCell className="font-medium whitespace-nowrap">
                                                                         {classDate
-                                                                            ? <span className="text-brand-primary font-semibold">{new Date(classDate).toLocaleDateString()}</span>
+                                                                            ? <span className="text-brand-primary font-semibold">{formatDateUTC(classDate)}</span>
                                                                             : <span className="text-slate-400">-</span>
                                                                         }
                                                                     </TableCell>
                                                                     <TableCell className="whitespace-nowrap text-slate-500 text-xs">
-                                                                        {new Date(entry.date).toLocaleDateString()}
+                                                                         {formatDateLocal(entry.date)}
                                                                     </TableCell>
                                                                     <TableCell>
                                                                         <div>{entry.activity}</div>
