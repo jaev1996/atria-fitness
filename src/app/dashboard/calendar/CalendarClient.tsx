@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ChevronLeft, ChevronRight, Plus, Users, School, Trash, Sparkles, AlertTriangle, ZoomIn, ZoomOut, Download } from "lucide-react"
+import { ChevronLeft, ChevronRight, Plus, Users, School, Trash, Sparkles, AlertTriangle, ZoomIn, ZoomOut, Download, LayoutList, CalendarDays } from "lucide-react"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { ROOMS, RoomId } from "@/constants/config"
@@ -113,6 +113,7 @@ export function CalendarClient({
     const [isRefreshing, setIsRefreshing] = useState(false)
     const [zoomLevel, setZoomLevel] = useState(1) // 0.8 to 1.5
     const [viewType, setViewType] = useState<'week' | 'month'>('week')
+    const [displayMode, setDisplayMode] = useState<'calendar' | 'agenda'>('calendar')
 
     // UI State
     const [isDialogOpen, setIsDialogOpen] = useState(false)
@@ -204,6 +205,51 @@ export function CalendarClient({
             return date
         })
     }, [currentWeekStart])
+
+    // Agenda view: group all (non-cancelled) classes by date, sorted by time
+    const agendaGroups = useMemo(() => {
+        // Build the full date range for the current period
+        const periodDates: string[] = []
+        if (viewType === 'week') {
+            for (let i = 0; i < 6; i++) {
+                const d = new Date(currentWeekStart)
+                d.setDate(d.getDate() + i)
+                periodDates.push(toYYYYMMDD(d))
+            }
+        } else {
+            // Use monthDays but only the ones belonging to the current month
+            monthDays.forEach(d => {
+                if (d.getMonth() === currentWeekStart.getMonth()) {
+                    periodDates.push(toYYYYMMDD(d))
+                }
+            })
+        }
+
+        // Filter non-cancelled classes and group them by date
+        const grouped: { dateStr: string; dateLabel: string; classes: ClassWithDetails[] }[] = []
+        for (const dateStr of periodDates) {
+            const dayClasses = classes
+                .filter(c => {
+                    const cd = new Date(c.date)
+                    const cdStr = `${cd.getUTCFullYear()}-${(cd.getUTCMonth() + 1).toString().padStart(2, '0')}-${cd.getUTCDate().toString().padStart(2, '0')}`
+                    return cdStr === dateStr && c.status !== 'CANCELLED'
+                })
+                .sort((a, b) => a.startTime.localeCompare(b.startTime))
+
+            if (dayClasses.length > 0) {
+                const [y, m, d] = dateStr.split('-').map(Number)
+                const dateObj = new Date(y, m - 1, d)
+                const dateLabel = dateObj.toLocaleDateString('es-ES', {
+                    weekday: 'long',
+                    day: 'numeric',
+                    month: 'long',
+                    year: 'numeric',
+                })
+                grouped.push({ dateStr, dateLabel, classes: dayClasses })
+            }
+        }
+        return grouped
+    }, [classes, currentWeekStart, viewType, monthDays])
 
     // Handlers
     const handleSlotClick = (date: Date, time: string) => {
@@ -490,7 +536,7 @@ export function CalendarClient({
                     </div>
 
                     <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto pb-1 sm:pb-0">
-                        {/* View Toggle */}
+                        {/* Period Toggle (Week/Month) */}
                         <div className="flex bg-white dark:bg-slate-800 border rounded-lg p-1 shadow-sm shrink-0">
                             <Button 
                                 variant={viewType === 'week' ? 'default' : 'ghost'} 
@@ -509,6 +555,29 @@ export function CalendarClient({
                                 Mes
                             </Button>
                         </div>
+                        {/* Display Mode Toggle (Calendar/Agenda) */}
+                        <div className="flex bg-white dark:bg-slate-800 border rounded-lg p-1 shadow-sm shrink-0">
+                            <Button
+                                variant={displayMode === 'calendar' ? 'default' : 'ghost'}
+                                size="sm"
+                                className={cn("h-7 px-3 text-[10px] font-bold gap-1", displayMode === 'calendar' ? "" : "text-slate-500")}
+                                onClick={() => setDisplayMode('calendar')}
+                                title="Vista Calendario"
+                            >
+                                <CalendarDays className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">Calendario</span>
+                            </Button>
+                            <Button
+                                variant={displayMode === 'agenda' ? 'default' : 'ghost'}
+                                size="sm"
+                                className={cn("h-7 px-3 text-[10px] font-bold gap-1", displayMode === 'agenda' ? "" : "text-slate-500")}
+                                onClick={() => setDisplayMode('agenda')}
+                                title="Vista Agenda"
+                            >
+                                <LayoutList className="h-3.5 w-3.5" />
+                                <span className="hidden sm:inline">Agenda</span>
+                            </Button>
+                        </div>
                         {/* Export Button */}
                         <Button
                             variant="outline"
@@ -519,35 +588,138 @@ export function CalendarClient({
                             <Download className="h-4 w-4" />
                             <span className="hidden xs:inline">Reporte PNG</span>
                         </Button>
-                        {/* Zoom Controls */}
-                        <div className="hidden sm:flex items-center bg-white dark:bg-slate-800 border rounded-full px-2 py-1 shadow-sm gap-1">
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 rounded-full"
-                                onClick={() => setZoomLevel(prev => Math.max(0.6, prev - 0.1))}
-                                title="Alejar"
-                            >
-                                <ZoomOut className="h-4 w-4" />
-                            </Button>
-                            <span className="text-[10px] font-bold w-9 text-center text-slate-500">
-                                {Math.round(zoomLevel * 100)}%
-                            </span>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 rounded-full"
-                                onClick={() => setZoomLevel(prev => Math.min(1.4, prev + 0.1))}
-                                title="Acercar"
-                            >
-                                <ZoomIn className="h-4 w-4" />
-                            </Button>
-                        </div>
+                        {/* Zoom Controls — only visible in calendar mode */}
+                        {displayMode === 'calendar' && (
+                            <div className="hidden sm:flex items-center bg-white dark:bg-slate-800 border rounded-full px-2 py-1 shadow-sm gap-1">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 rounded-full"
+                                    onClick={() => setZoomLevel(prev => Math.max(0.6, prev - 0.1))}
+                                    title="Alejar"
+                                >
+                                    <ZoomOut className="h-4 w-4" />
+                                </Button>
+                                <span className="text-[10px] font-bold w-9 text-center text-slate-500">
+                                    {Math.round(zoomLevel * 100)}%
+                                </span>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7 rounded-full"
+                                    onClick={() => setZoomLevel(prev => Math.min(1.4, prev + 0.1))}
+                                    title="Acercar"
+                                >
+                                    <ZoomIn className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        )}
                     </div>
                 </div>
 
-                {/* Calendar Grid with Tabs */}
-                <div className="w-full" id="calendar-capture">
+                {/* ── AGENDA VIEW ─────────────────────────────────────────── */}
+                {displayMode === 'agenda' && (
+                    <div className="w-full">
+                        {agendaGroups.length === 0 ? (
+                            <div className="py-16 text-center bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 shadow-sm">
+                                <LayoutList className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                                <p className="text-slate-500 text-sm">
+                                    No hay clases programadas en este período.
+                                </p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col gap-6">
+                                {agendaGroups.map(group => (
+                                    <div key={group.dateStr} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm overflow-hidden">
+                                        {/* Date Header */}
+                                        <div className="px-4 py-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 flex items-center gap-2">
+                                            <CalendarDays className="h-4 w-4 text-brand-primary shrink-0" />
+                                            <span className="font-semibold text-slate-700 dark:text-slate-200 capitalize text-sm">
+                                                {group.dateLabel}
+                                            </span>
+                                            <span className="ml-auto text-[10px] bg-brand-primary/10 text-brand-primary font-bold px-2 py-0.5 rounded-full">
+                                                {group.classes.length} clase{group.classes.length !== 1 ? 's' : ''}
+                                            </span>
+                                        </div>
+                                        {/* Classes List */}
+                                        <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                                            {group.classes.map(c => {
+                                                const room = ROOMS.find(r => r.id === c.room)
+                                                const roomColor = c.room === 'salon-alma'
+                                                    ? 'bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-900/30 dark:text-fuchsia-300'
+                                                    : c.room === 'salon-armonia'
+                                                    ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                                                    : 'bg-sky-100 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300'
+                                                return (
+                                                    <div
+                                                        key={c.id}
+                                                        className={cn(
+                                                            "flex items-center gap-4 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors",
+                                                            (role === 'admin' || role === null || role === 'instructor') ? "cursor-pointer" : "cursor-default"
+                                                        )}
+                                                        onClick={() => {
+                                                            const [y, mo, d] = group.dateStr.split('-').map(Number)
+                                                            const clickDate = new Date(y, mo - 1, d)
+                                                            handleSlotClick(clickDate, c.startTime)
+                                                            // handleSlotClick needs the active room to match — set it
+                                                            setActiveRoom(c.room as RoomId)
+                                                        }}
+                                                    >
+                                                        {/* Time */}
+                                                        <div className="text-sm font-bold text-slate-800 dark:text-slate-100 tabular-nums w-12 shrink-0">
+                                                            {c.startTime}
+                                                        </div>
+                                                        {/* Status dot */}
+                                                        <div className={cn(
+                                                            "w-2 h-2 rounded-full shrink-0",
+                                                            c.status === 'SCHEDULED' ? 'bg-blue-400' :
+                                                            c.status === 'CONFIRMED' ? 'bg-green-400' :
+                                                            c.status === 'RESCHEDULED' ? 'bg-orange-400' :
+                                                            c.status === 'COMPLETED' ? 'bg-slate-400' : 'bg-slate-300'
+                                                        )} title={STATUS_LABELS[c.status]} />
+                                                        {/* Class info */}
+                                                        <div className="flex-1 min-w-0">
+                                                            <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm truncate">
+                                                                {c.type}{c.observation ? ` (${c.observation})` : ''}
+                                                            </p>
+                                                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                                                                <div className="flex items-center gap-1">
+                                                                    <div className={cn('w-2 h-2 rounded-full shrink-0', getInstructorColor(c.instructor.name))} />
+                                                                    <span className="text-xs text-slate-500 truncate">{c.instructor.name}</span>
+                                                                </div>
+                                                                <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded-full', roomColor)}>
+                                                                    {room?.name ?? c.room}
+                                                                </span>
+                                                                {c.isPrivate && (
+                                                                    <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300">
+                                                                        Privada
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        {/* Capacity */}
+                                                        <div className="flex items-center gap-1 text-xs text-slate-500 shrink-0">
+                                                            <Users className="h-3.5 w-3.5" />
+                                                            <span className="tabular-nums font-medium">
+                                                                {c.attendees.length}/{c.maxCapacity}
+                                                            </span>
+                                                            {c.attendees.some(a => a.attendanceType === 'COURTESY') && (
+                                                                <Sparkles className="h-3 w-3 text-yellow-500" />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )
+                                            })}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ── CALENDAR VIEW (Grid with Tabs) ───────────────────────── */}
+                <div className={cn("w-full", displayMode === 'agenda' ? 'hidden' : '')} id="calendar-capture">
                     <Tabs value={activeRoom} onValueChange={(v) => setActiveRoom(v as RoomId)}>
                         <div className="flex items-center mb-4 overflow-x-auto pb-2 scrollbar-hide">
                             <TabsList className="bg-white dark:bg-slate-800 p-1 flex w-max min-w-full sm:w-auto">
@@ -737,6 +909,7 @@ export function CalendarClient({
                         ))}
                     </Tabs>
                 </div>
+                {/* end calendar-capture div */}
             </main>
 
             {/* Class Dialog */}
