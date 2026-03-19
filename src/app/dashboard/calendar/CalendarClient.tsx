@@ -252,6 +252,32 @@ export function CalendarClient({
     }, [classes, currentWeekStart, viewType, monthDays])
 
     // Handlers
+    // Dedicated handler for the Agenda view: directly opens the dialog from the
+    // class object we already have, avoiding the stale-activeRoom lookup that
+    // handleSlotClick performs (which caused empty dialogs on the first click).
+    const handleAgendaClassClick = (classItem: ClassWithDetails) => {
+        setIsCourtesy(false)
+        setStudentToAdd("")
+        setActiveRoom(classItem.room as RoomId)
+        const eDate = new Date(classItem.date)
+        const dStr = `${eDate.getUTCFullYear()}-${(eDate.getUTCMonth() + 1).toString().padStart(2, '0')}-${eDate.getUTCDate().toString().padStart(2, '0')}`
+        setFormData({
+            id: classItem.id,
+            instructorId: classItem.instructorId,
+            date: dStr,
+            startTime: classItem.startTime,
+            type: classItem.type,
+            notes: classItem.notes || "",
+            status: classItem.status as ClassStatus,
+            room: classItem.room as RoomId,
+            maxCapacity: classItem.maxCapacity,
+            attendees: classItem.attendees,
+            isPrivate: classItem.isPrivate ?? false,
+            observation: classItem.observation || "",
+        })
+        setIsDialogOpen(true)
+    }
+
     const handleSlotClick = (date: Date, time: string) => {
         const dateStr = toYYYYMMDD(date)
         const existingClass = classes.find(c => {
@@ -473,7 +499,8 @@ export function CalendarClient({
     }
 
     const exportToImage = async () => {
-        const element = document.getElementById('calendar-capture')
+        const captureId = displayMode === 'agenda' ? 'agenda-capture' : 'calendar-capture'
+        const element = document.getElementById(captureId)
         if (!element) return
 
         const toastId = toast.loading("Preparando imagen...")
@@ -496,8 +523,9 @@ export function CalendarClient({
                 }
             })
 
+            const prefix = displayMode === 'agenda' ? 'agenda' : 'calendario'
             const link = document.createElement("a")
-            link.download = `calendario-atria-${toYYYYMMDD(new Date())}.png`
+            link.download = `${prefix}-atria-${toYYYYMMDD(new Date())}.png`
             link.href = dataUrl
             link.click()
             toast.success("Imagen exportada con éxito", { id: toastId })
@@ -619,7 +647,7 @@ export function CalendarClient({
 
                 {/* ── AGENDA VIEW ─────────────────────────────────────────── */}
                 {displayMode === 'agenda' && (
-                    <div className="w-full">
+                    <div className="w-full" id="agenda-capture">
                         {agendaGroups.length === 0 ? (
                             <div className="py-16 text-center bg-white dark:bg-slate-800 rounded-xl border border-dashed border-slate-200 dark:border-slate-700 shadow-sm">
                                 <LayoutList className="h-8 w-8 text-slate-300 mx-auto mb-2" />
@@ -657,13 +685,7 @@ export function CalendarClient({
                                                             "flex items-center gap-4 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-700/40 transition-colors",
                                                             (role === 'admin' || role === null || role === 'instructor') ? "cursor-pointer" : "cursor-default"
                                                         )}
-                                                        onClick={() => {
-                                                            const [y, mo, d] = group.dateStr.split('-').map(Number)
-                                                            const clickDate = new Date(y, mo - 1, d)
-                                                            handleSlotClick(clickDate, c.startTime)
-                                                            // handleSlotClick needs the active room to match — set it
-                                                            setActiveRoom(c.room as RoomId)
-                                                        }}
+                                                        onClick={() => handleAgendaClassClick(c)}
                                                     >
                                                         {/* Time */}
                                                         <div className="text-sm font-bold text-slate-800 dark:text-slate-100 tabular-nums w-12 shrink-0">
