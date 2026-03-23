@@ -52,19 +52,19 @@ const roomIdSchema = z
 const VALID_PLANS = ['Sin Plan', 'Clase Suelta', 'Pack 4 Clases', 'Pack 8 Clases', 'Pack 12 Clases', 'Pack 24 Clases', 'Ilimitado'] as const
 
 export const AddStudentSchema = z.object({
-    name: z.string().min(1, 'El nombre es obligatorio.').max(100, 'El nombre es demasiado largo.').trim(),
-    phone: z.string().min(1, 'El teléfono es obligatorio.').max(30, 'Número de teléfono inválido.').trim(),
-    email: z.string().email('El correo no tiene un formato válido.').max(200).trim().optional().or(z.literal('')),
+    name: z.string().min(1, 'El nombre es obligatorio.').max(100, 'El nombre es demasiado largo (máximo 100 caracteres).').trim(),
+    phone: z.string().min(1, 'El teléfono es obligatorio.').max(30, 'El número de teléfono es demasiado largo.').trim(),
+    email: z.string().email('El correo electrónico no tiene un formato válido.').max(200, 'El correo electrónico es demasiado largo.').trim().optional().or(z.literal('')),
     planType: z.enum(VALID_PLANS).optional(),
     discipline: z.string().max(100).optional(),
     disciplines: z.array(z.string().max(100)).optional(),
     status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']).optional(),
-    medicalInfo: z.string().max(2000).optional(),
-    allergies: z.string().max(500).optional(),
-    injuries: z.string().max(500).optional(),
-    conditions: z.string().max(500).optional(),
-    emergencyContact: z.string().max(200).optional(),
-    sportsInfo: z.string().max(1000).optional(),
+    medicalInfo: z.string().max(2000, 'La información médica es demasiado larga.').optional(),
+    allergies: z.string().max(500, 'Las alergias son demasiado largas.').optional(),
+    injuries: z.string().max(500, 'Las lesiones son demasiado largas.').optional(),
+    conditions: z.string().max(500, 'Las condiciones son demasiado largas.').optional(),
+    emergencyContact: z.string().max(200, 'El contacto de emergencia es demasiado largo.').optional(),
+    sportsInfo: z.string().max(1000, 'La información deportiva es demasiado larga.').optional(),
 })
 
 export const ProcessPaymentSchema = z.object({
@@ -92,10 +92,10 @@ export const AddClassSchema = z.object({
     startTime: timeStrSchema,
     type: disciplineSchema,
     room: roomIdSchema,
-    maxCapacity: z.number().int().min(1, 'Mínimo 1 persona.').max(100, 'Capacidad máxima excedida.'),
-    notes: z.string().max(500).optional(),
+    maxCapacity: z.number().int().min(1, 'Mínimo 1 persona.').max(100, 'Capacidad máxima excedida (máximo 100).'),
+    notes: z.string().max(500, 'Las notas son demasiado largas.').optional(),
     isPrivate: z.boolean().optional(),
-    observation: z.string().max(100).optional(),
+    observation: z.string().max(100, 'La observación es demasiado larga.').optional(),
 })
 
 export const EnrollStudentSchema = z.object({
@@ -112,11 +112,11 @@ export const RemoveAttendeeSchema = z.object({
 // ── Instructores ─────────────────────────────────────────────────────────────
 
 export const AddInstructorSchema = z.object({
-    name: z.string().min(1, 'El nombre es obligatorio.').max(100).trim(),
-    email: z.string().email('El correo no tiene un formato válido.').max(200).trim(),
-    phone: z.string().max(30).optional(),
+    name: z.string().min(1, 'El nombre es obligatorio.').max(100, 'El nombre es demasiado largo.').trim(),
+    email: z.string().email('El correo electrónico no tiene un formato válido.').max(200, 'El correo electrónico es demasiado largo.').trim(),
+    phone: z.string().max(30, 'El teléfono es demasiado largo.').optional(),
     specialties: z.array(z.string().max(100)).max(20, 'Demasiadas especialidades.').default([]),
-    bio: z.string().max(2000).optional(),
+    bio: z.string().max(2000, 'La biografía es demasiado larga.').optional(),
 })
 
 export const AddInstructorPaymentSchema = z.object({

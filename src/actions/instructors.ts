@@ -27,58 +27,114 @@ export async function addInstructor(data: { name: string, email: string, phone?:
     await ensureRole(['admin'])
     AddInstructorSchema.parse(data)
 
-    // 0. Check if instructor already exists in Prisma to avoid duplicates
-    const existing = await prisma.user.findUnique({ where: { email: data.email } })
-    if (existing) throw new Error("Ya existe un usuario registrado con este correo electrónico.")
-
-    // 1. Create User in Supabase Auth via Admin API (bypassing email confirmation)
-    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email: data.email,
-        password: 'atria2026', // Initial default password
-        email_confirm: true,  // Auto-confirm email
-        user_metadata: { name: data.name, role: 'INSTRUCTOR' },
-        app_metadata: { role: 'instructor' }
-    })
-
-    if (authError) throw new Error(`Error en Supabase Auth: ${authError.message}`)
-
-    // 2. Create Profile in Prisma linked to Supabase ID
-    const instructor = await prisma.user.create({
-        data: {
-            id: authUser.user.id, // Linking with Supabase Auth UUID
-            name: data.name,
-            email: data.email,
-            phone: data.phone,
-            specialties: data.specialties,
-            bio: data.bio,
+    // 0. Explicit duplicate checks
+    const existing = await prisma.user.findFirst({
+        where: {
+            OR: [
+                { email: data.email },
+                data.phone ? { phone: data.phone } : {},
+                { name: { equals: data.name, mode: 'insensitive' as Prisma.QueryMode } }
+            ].filter(c => Object.keys(c).length > 0),
             role: 'INSTRUCTOR'
         }
     })
 
-    revalidatePath('/dashboard/instructors')
-    return instructor
+    if (existing) {
+        if (existing.email === data.email) throw new Error("Ya existe un instructor registrado con este correo electrónico.")
+        if (data.phone && existing.phone === data.phone) throw new Error(`Este número de teléfono ya está registrado con otro instructor (${existing.name}).`)
+        if (existing.name.toLowerCase() === data.name.toLowerCase()) throw new Error(`Ya existe un instructor registrado con el nombre "${data.name}".`)
+    }
+
+    // 1. Create User in Supabase Auth via Admin API
+    const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        email: data.email,
+        password: 'atria2026', // Initial default password
+        email_confirm: true,
+        user_metadata: { name: data.name, role: 'INSTRUCTOR' },
+        app_metadata: { role: 'instructor' }
+    })
+
+    if (authError) {
+        if (authError.message.includes('already registered')) {
+            throw new Error("Este correo electrónico ya está registrado en el sistema de autenticación.")
+        }
+        throw new Error(`Error al crear la cuenta del instructor: ${authError.message}`)
+    }
+
+    // 2. Create Profile in Prisma
+    try {
+        const instructor = await prisma.user.create({
+            data: {
+                id: authUser.user.id,
+                name: data.name,
+                email: data.email,
+                phone: data.phone,
+                specialties: data.specialties,
+                bio: data.bio,
+                role: 'INSTRUCTOR'
+            }
+        })
+        revalidatePath('/dashboard/instructors')
+        return instructor
+    } catch (error) {
+        console.error("Prisma error adding instructor:", error)
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            throw new Error("Ya existe un instructor con este correo electrónico o teléfono.")
+        }
+        throw new Error("Error inesperado al guardar los datos del instructor.")
+    }
 }
 
 export async function updateInstructor(id: string, data: Prisma.UserUpdateInput) {
     await ensureRole(['admin'])
-    const updated = await prisma.user.update({
-        where: { id },
-        data
-    })
-    // Sincronizar con Supabase Auth metadata para rendimiento
-    await supabaseAdmin.auth.admin.updateUserById(id, {
-        user_metadata: {
-            name: typeof updated.name === 'string' ? updated.name : undefined,
-            role: updated.role.toLowerCase()
-        },
-        app_metadata: {
-            role: updated.role.toLowerCase()
-        }
-    })
 
-    revalidatePath('/dashboard/instructors')
-    revalidatePath(`/dashboard/instructors/${id}`)
-    return updated
+    // Check for duplicates excluding self
+    if (data.email || data.phone || data.name) {
+        const existing = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    data.email ? { email: data.email as string } : {},
+                    data.phone ? { phone: data.phone as string } : {},
+                    data.name ? { name: { equals: data.name as string, mode: 'insensitive' as Prisma.QueryMode } } : {}
+                ].filter(c => Object.keys(c).length > 0),
+                id: { not: id },
+                role: 'INSTRUCTOR'
+            }
+        })
+
+        if (existing) {
+            if (data.email && existing.email === data.email) throw new Error("Ya existe otro instructor con este correo electrónico.")
+            if (data.phone && existing.phone === data.phone) throw new Error(`Este número de teléfono ya está registrado con otro instructor (${existing.name}).`)
+            if (data.name && (data.name as string).toLowerCase() === existing.name.toLowerCase()) throw new Error(`Ya existe otro instructor con el nombre "${data.name}".`)
+        }
+    }
+
+    try {
+        const updated = await prisma.user.update({
+            where: { id },
+            data
+        })
+        // Sync with Supabase Auth
+        await supabaseAdmin.auth.admin.updateUserById(id, {
+            user_metadata: {
+                name: typeof updated.name === 'string' ? updated.name : undefined,
+                role: updated.role.toLowerCase()
+            },
+            app_metadata: {
+                role: updated.role.toLowerCase()
+            }
+        })
+
+        revalidatePath('/dashboard/instructors')
+        revalidatePath(`/dashboard/instructors/${id}`)
+        return updated
+    } catch (error) {
+        console.error("Prisma error updating instructor:", error)
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            throw new Error("Ya existe otro instructor con los mismos datos (email/teléfono).")
+        }
+        throw new Error("Error al actualizar los datos del instructor.")
+    }
 }
 
 export async function deleteInstructor(id: string) {

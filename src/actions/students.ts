@@ -110,10 +110,30 @@ export async function addStudent(data: {
     const parsed = AddStudentSchema.parse(data)
     const { planType, discipline, disciplines, ...studentData } = parsed
 
+    // 1. Explicit duplicate checks
+    const existingStudent = await prisma.user.findFirst({
+        where: {
+            OR: [
+                { phone: data.phone },
+                { name: { equals: data.name, mode: 'insensitive' as Prisma.QueryMode } }
+            ],
+            role: 'STUDENT'
+        }
+    })
+
+    if (existingStudent) {
+        if (existingStudent.phone === data.phone) {
+            throw new Error(`Ese número de teléfono ya está registrado con otra alumna (${existingStudent.name}).`)
+        }
+        if (existingStudent.name.toLowerCase() === data.name.toLowerCase()) {
+            throw new Error(`Ya existe una alumna registrada con el nombre "${data.name}".`)
+        }
+    }
+
     // Generate placeholder email if not provided
     const email = data.email || `${data.phone.replace(/\s/g, '')}@atria-user.com`
 
-    // 1. Create User in Supabase Auth (Auto-confirm)
+    // 2. Create User in Supabase Auth (Auto-confirm)
     const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email: email,
         password: 'atria-fitness-2026', // Initial default password
@@ -123,29 +143,39 @@ export async function addStudent(data: {
     })
 
     if (authError) {
-        // If user already exists in Auth, we might want to just link it or throw error
-        // For now, let's throw if it's not a "user already exists" error
-        if (!authError.message.includes('already registered')) {
-            throw new Error(`Error creating student auth: ${authError.message}`)
+        if (authError.message.includes('already registered')) {
+            throw new Error("Este correo electrónico o número de teléfono ya está registrado en el sistema de autenticación.")
         }
+        throw new Error(`Error al crear la cuenta de la alumna: ${authError.message}`)
     }
 
-    // 2. Create Profile in Prisma
-    const student = await prisma.user.upsert({
-        where: { email: email },
-        update: {
-            ...studentData,
-            role: 'STUDENT',
-            status: data.status || 'ACTIVE',
-        },
-        create: {
-            ...studentData,
-            id: authUser?.user?.id || `temp_${Date.now()}`,
-            email: email,
-            role: 'STUDENT',
-            status: data.status || 'ACTIVE',
+    // 3. Create Profile in Prisma
+    let student;
+    try {
+        student = await prisma.user.create({
+            data: {
+                ...studentData,
+                id: authUser?.user?.id || `temp_${Date.now()}`,
+                email: email,
+                role: 'STUDENT',
+                status: data.status || 'ACTIVE',
+            }
+        })
+    } catch (error) {
+        console.error("Prisma error adding student:", error)
+        if (error instanceof Prisma.PrismaClientKnownRequestError) {
+            if (error.code === 'P2002') {
+                const targets = (error.meta?.target as string[]) || []
+                if (targets.includes('email')) {
+                    throw new Error("Ya existe una alumna con este correo electrónico (o el teléfono proporcionado ya está en uso).")
+                }
+                if (targets.includes('phone')) {
+                    throw new Error("Ese número de teléfono ya está registrado.")
+                }
+            }
         }
-    })
+        throw new Error("Ocurrió un error inesperado al guardar los datos de la alumna. Por favor intenta de nuevo.")
+    }
 
     if (planType && planType !== 'Sin Plan') {
         let credits = 8
@@ -179,6 +209,30 @@ export async function addStudent(data: {
 
 export async function updateStudent(id: string, data: Partial<User>) {
     await ensureRole(['admin'])
+
+    // Check if new phone/name belongs to another student
+    if (data.phone || data.name) {
+        const existingStudent = await prisma.user.findFirst({
+            where: {
+                OR: [
+                    data.phone ? { phone: data.phone } : {},
+                    data.name ? { name: { equals: data.name, mode: 'insensitive' as Prisma.QueryMode } } : {}
+                ].filter(condition => Object.keys(condition).length > 0),
+                id: { not: id },
+                role: 'STUDENT'
+            }
+        })
+
+        if (existingStudent) {
+            if (data.phone && existingStudent.phone === data.phone) {
+                throw new Error(`Este número de teléfono ya está registrado con otra alumna (${existingStudent.name}).`)
+            }
+            if (data.name && existingStudent.name?.toLowerCase() === data.name.toLowerCase()) {
+                throw new Error(`Ya existe otra alumna registrada con el nombre "${data.name}".`)
+            }
+        }
+    }
+
     const updated = await prisma.user.update({
         where: { id },
         data

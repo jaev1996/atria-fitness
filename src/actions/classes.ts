@@ -82,17 +82,22 @@ export async function addClass(data: {
         }
     }
 
-    const newClass = await prisma.classSession.create({
-        data: {
-            ...parsed,
-            date: classDate,
-            endTime,
-            status: 'SCHEDULED'
-        }
-    })
+    try {
+        const newClass = await prisma.classSession.create({
+            data: {
+                ...parsed,
+                date: classDate,
+                endTime,
+                status: 'SCHEDULED'
+            }
+        })
 
-    revalidatePath('/dashboard/calendar')
-    return newClass
+        revalidatePath('/dashboard/calendar')
+        return newClass
+    } catch (error) {
+        console.error("Prisma error adding class:", error)
+        throw new Error("Ocurrió un error inesperado al crear la clase. Verifica los datos e intenta de nuevo.")
+    }
 }
 
 export async function updateClass(id: string, data: Partial<ClassSession>) {
@@ -148,21 +153,29 @@ export async function updateClass(id: string, data: Partial<ClassSession>) {
         }
     }
 
-    const updated = await prisma.classSession.update({
-        where: { id },
-        data: {
-            ...data,
-            date: classDate
+    try {
+        const updated = await prisma.classSession.update({
+            where: { id },
+            data: {
+                ...data,
+                date: classDate
+            }
+        })
+
+        // Check for completion logic (deduct credits)
+        if (data.status === 'COMPLETED' && existing?.status !== 'COMPLETED') {
+            await handleClassCompletion(id)
         }
-    })
 
-    // Check for completion logic (deduct credits)
-    if (data.status === 'COMPLETED' && existing?.status !== 'COMPLETED') {
-        await handleClassCompletion(id)
+        revalidatePath('/dashboard/calendar')
+        return updated
+    } catch (error) {
+        console.error("Prisma error updating class:", error)
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+            throw new Error("Ya existe una clase con esta configuración única (posible duplicado técnico).")
+        }
+        throw new Error("Error al actualizar los datos de la clase.")
     }
-
-    revalidatePath('/dashboard/calendar')
-    return updated
 }
 
 async function handleClassCompletion(classId: string) {
@@ -240,7 +253,9 @@ export async function enrollStudent(classId: string, studentId: string, type: 'S
     if (role === 'instructor' && classData.instructorId !== user.id) {
         throw new Error("No puedes inscribir alumnos en clases de otros instructores")
     }
-    if (classData.attendees.length >= classData.maxCapacity) throw new Error("Clase llena")
+    if (classData.attendees.length >= classData.maxCapacity) {
+        throw new Error(`La clase ya ha alcanzado su capacidad máxima (${classData.maxCapacity} personas).`)
+    }
 
     // Check if student is already enrolled in THIS class
     if (classData.attendees.some(a => a.studentId === studentId)) {
