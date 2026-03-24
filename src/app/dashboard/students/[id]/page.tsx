@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { getStudent, updateStudent, processStudentPayment, deleteStudentPlan, deleteHistoryEntry, addHistoryEntry, updateStudentPlan } from "@/actions/students"
+import { getStudent, updateStudent, processPayment, renewPlan, deleteStudentPlan, deleteHistoryEntry, addHistoryEntry, updateStudentPlan } from "@/actions/students"
 import { User, StudentPlan, StudentPayment, StudentHistory, StudentStatus, PaymentMethod } from "@prisma/client"
 import { useSubmitting } from "@/hooks/useSubmitting"
 import { Sidebar } from "@/components/shared/sidebar"
@@ -39,6 +39,7 @@ export default function StudentDetailsPage() {
     const [isPaymentLoading, setIsPaymentLoading] = useState(false)
     const [isHistoryDialogOpen, setIsHistoryDialogOpen] = useState(false)
     const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
+    const [isRenewalDialogOpen, setIsRenewalDialogOpen] = useState(false)
     const [isEditPlanDialogOpen, setIsEditPlanDialogOpen] = useState(false)
     const [editingPlan, setEditingPlan] = useState<{ id: string, disciplines: string[] } | null>(null)
 
@@ -75,7 +76,23 @@ export default function StudentDetailsPage() {
         credits: 8,
         amount: "",
         method: "TRANSFERENCIA",
-        disciplines: ["Pole"] // Default array
+        disciplines: ["Pole"]
+    })
+
+    const [renewalForm, setRenewalForm] = useState<{
+        planId: string;
+        planName: string;
+        credits: number;
+        amount: string;
+        method: PaymentMethod;
+        disciplines: string[];
+    }>({
+        planId: "",
+        planName: "Pack 8 Clases",
+        credits: 8,
+        amount: "",
+        method: "TRANSFERENCIA",
+        disciplines: ["Pole"]
     })
 
     // Edit Forms
@@ -158,7 +175,8 @@ export default function StudentDetailsPage() {
                 await submit(() => addHistoryEntry(student.id, {
                     activity: newEntry.activity,
                     notes: newEntry.notes,
-                    cost: Number(newEntry.cost)
+                    cost: Number(newEntry.cost),
+                    classDate: newEntry.date
                 }))
                 toast.success("Historial actualizado")
                 setIsHistoryDialogOpen(false)
@@ -193,7 +211,7 @@ export default function StudentDetailsPage() {
         if (student) {
             setIsPaymentLoading(true)
             try {
-                await processStudentPayment({
+                await processPayment({
                     studentId: student.id,
                     amount: Number(newPayment.amount),
                     method: newPayment.method,
@@ -213,6 +231,35 @@ export default function StudentDetailsPage() {
                 loadStudent()
             } catch (err) {
                 toast.error(err instanceof Error ? err.message : "Error al procesar pago")
+            } finally {
+                setIsPaymentLoading(false)
+            }
+        }
+    }
+
+    const handleRenewPlan = async () => {
+        if (!renewalForm.amount || !renewalForm.planName || !renewalForm.planId) {
+            toast.error("Datos incompletos")
+            return
+        }
+        if (isPaymentLoading) return
+        if (student) {
+            setIsPaymentLoading(true)
+            try {
+                await renewPlan({
+                    studentId: student.id,
+                    planId: renewalForm.planId,
+                    amount: Number(renewalForm.amount),
+                    method: renewalForm.method,
+                    planName: renewalForm.planName,
+                    credits: renewalForm.credits,
+                    disciplines: renewalForm.disciplines
+                })
+                toast.success("Plan renovado correctamente")
+                setIsRenewalDialogOpen(false)
+                loadStudent()
+            } catch (err) {
+                toast.error(err instanceof Error ? err.message : "Error al renovar plan")
             } finally {
                 setIsPaymentLoading(false)
             }
@@ -388,7 +435,13 @@ export default function StudentDetailsPage() {
                                 {role === 'admin' && (
                                     <Dialog open={isPaymentDialogOpen} onOpenChange={(open) => { if (!isPaymentLoading) setIsPaymentDialogOpen(open) }}>
                                         <DialogTrigger asChild>
-                                            <Button size="sm" variant="secondary" className="h-7 text-xs bg-white text-brand-primary border border-brand-primary/20 hover:bg-brand-primary hover:text-white">
+                                            <Button 
+                                                size="sm" 
+                                                variant="secondary" 
+                                                className="h-7 text-xs bg-white text-brand-primary border border-brand-primary/20 hover:bg-brand-primary hover:text-white disabled:opacity-50"
+                                                disabled={student.plans.some(p => p.isActive)}
+                                                title={student.plans.some(p => p.isActive) ? "Ya existe un plan activo" : ""}
+                                            >
                                                 + Nuevo Plan
                                             </Button>
                                         </DialogTrigger>
@@ -496,6 +549,113 @@ export default function StudentDetailsPage() {
                                     </Dialog>
                                 )}
 
+                                {/* Renew Plan Dialog — admin only */}
+                                {role === 'admin' && (
+                                    <Dialog open={isRenewalDialogOpen} onOpenChange={(open) => { if (!isPaymentLoading) setIsRenewalDialogOpen(open) }}>
+                                        <DialogContent>
+                                            <DialogHeader>
+                                                <DialogTitle>Renovar Plan Existente</DialogTitle>
+                                            </DialogHeader>
+                                            <div className="grid gap-4 py-4">
+                                                <div className="grid gap-2 border-b pb-4">
+                                                    <Label className="mb-2">Disciplinas permitidas *</Label>
+                                                    <div className="grid grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-lg border">
+                                                        <div className="flex items-center space-x-2">
+                                                            <Checkbox
+                                                                id="ren-spec-General"
+                                                                checked={renewalForm.disciplines.includes("General")}
+                                                                onCheckedChange={(checked) => {
+                                                                    if (checked) {
+                                                                        setRenewalForm({ ...renewalForm, disciplines: ["General"] })
+                                                                    } else {
+                                                                        setRenewalForm({ ...renewalForm, disciplines: [] })
+                                                                    }
+                                                                }}
+                                                            />
+                                                            <label htmlFor="ren-spec-General" className="text-sm font-semibold leading-none cursor-pointer text-brand-primary">
+                                                                General (Todas)
+                                                            </label>
+                                                        </div>
+                                                        {DISCIPLINES.map(d => (
+                                                            <div key={d} className="flex items-center space-x-2">
+                                                                <Checkbox
+                                                                    id={`ren-spec-${d}`}
+                                                                    checked={renewalForm.disciplines.includes(d)}
+                                                                    onCheckedChange={(checked) => {
+                                                                        let updated = [...renewalForm.disciplines]
+                                                                        if (checked) {
+                                                                            updated = updated.filter(item => item !== "General")
+                                                                            updated.push(d)
+                                                                        } else {
+                                                                            updated = updated.filter(item => item !== d)
+                                                                        }
+                                                                        setRenewalForm({ ...renewalForm, disciplines: updated })
+                                                                    }}
+                                                                />
+                                                                <label htmlFor={`ren-spec-${d}`} className="text-sm font-medium leading-none cursor-pointer">
+                                                                    {d}
+                                                                </label>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                                <div className="grid gap-2">
+                                                    <Label>Tipo de Plan a Sumar</Label>
+                                                    <Select
+                                                        value={renewalForm.planName}
+                                                        onValueChange={(v) => {
+                                                            let c = 8
+                                                            if (v === 'Pack 4 Clases') c = 4
+                                                            if (v === 'Pack 12 Clases') c = 12
+                                                            if (v === 'Pack 24 Clases') c = 24
+                                                            if (v === 'Ilimitado') c = 999
+                                                            if (v === 'Clase Suelta') c = 1
+                                                            setRenewalForm({ ...renewalForm, planName: v, credits: c })
+                                                        }}
+                                                    >
+                                                        <SelectTrigger>
+                                                            <SelectValue />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="Clase Suelta">Clase Suelta (1 Crédito)</SelectItem>
+                                                            <SelectItem value="Pack 4 Clases">Pack 4 Clases</SelectItem>
+                                                            <SelectItem value="Pack 8 Clases">Pack 8 Clases</SelectItem>
+                                                            <SelectItem value="Pack 12 Clases">Pack 12 Clases</SelectItem>
+                                                            <SelectItem value="Ilimitado">Ilimitado</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                                <div className="grid gap-2">
+                                                    <Label>Créditos a Agregarse</Label>
+                                                    <Input type="number" value={renewalForm.credits} onChange={e => setRenewalForm({ ...renewalForm, credits: parseInt(e.target.value) })} />
+                                                </div>
+                                                <div className="grid gap-2">
+                                                    <Label>Monto de Renovación ({currency})</Label>
+                                                    <Input type="number" value={renewalForm.amount} onChange={e => setRenewalForm({ ...renewalForm, amount: e.target.value })} />
+                                                </div>
+                                                <div className="grid gap-2">
+                                                    <Label>Método de Pago</Label>
+                                                    <Select value={renewalForm.method} onValueChange={(v: PaymentMethod) => setRenewalForm({ ...renewalForm, method: v })}>
+                                                        <SelectTrigger><SelectValue /></SelectTrigger>
+                                                        <SelectContent>
+                                                            <SelectItem value="EFECTIVO">Efectivo</SelectItem>
+                                                            <SelectItem value="TRANSFERENCIA">Transferencia</SelectItem>
+                                                            <SelectItem value="TARJETA">Tarjeta</SelectItem>
+                                                            <SelectItem value="OTRO">Otro</SelectItem>
+                                                        </SelectContent>
+                                                    </Select>
+                                                </div>
+                                            </div>
+                                            <DialogFooter>
+                                                <Button variant="outline" onClick={() => setIsRenewalDialogOpen(false)}>Cancelar</Button>
+                                                <Button onClick={handleRenewPlan} disabled={isPaymentLoading} className="bg-brand-primary text-white hover:bg-brand-primary/90">
+                                                    {isPaymentLoading ? "Renovando..." : "Confirmar Renovación"}
+                                                </Button>
+                                            </DialogFooter>
+                                        </DialogContent>
+                                    </Dialog>
+                                )}
+
                                 {/* Edit Plan Disciplines Dialog — admin only */}
                                 {role === 'admin' && (
                                     <Dialog open={isEditPlanDialogOpen} onOpenChange={setIsEditPlanDialogOpen}>
@@ -566,7 +726,7 @@ export default function StudentDetailsPage() {
                                                 <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase",
                                                     plan.isActive ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
                                                 )}>
-                                                    {plan.disciplines && plan.disciplines.length > 0 ? plan.disciplines.join(", ") : plan.discipline}
+                                                    {plan.isActive ? "Activo" : "Inactivo"} - {plan.disciplines && plan.disciplines.length > 0 ? plan.disciplines.join(", ") : plan.discipline}
                                                 </span>
                                             </div>
                                             <div className="flex justify-between text-xs text-slate-500 mb-1">
@@ -575,6 +735,26 @@ export default function StudentDetailsPage() {
                                                     <span className={cn("font-bold", plan.credits < 2 ? "text-red-500" : "text-slate-700")}>
                                                         {plan.credits > 900 ? "∞" : plan.credits}
                                                     </span>
+                                                    {role === 'admin' && (plan.isActive || (idx === 0 && plan.credits === 0)) && plan.credits <= 1 && (
+                                                        <Button 
+                                                            size="sm" 
+                                                            variant="outline" 
+                                                            className="h-6 text-[10px] px-2 border-brand-primary/30 text-brand-primary hover:bg-brand-primary hover:text-white"
+                                                            onClick={() => {
+                                                                setRenewalForm({
+                                                                    planId: plan.id,
+                                                                    planName: plan.originalName,
+                                                                    credits: plan.originalName === 'Pack 4 Clases' ? 4 : (plan.originalName === 'Pack 12 Clases' ? 12 : 8),
+                                                                    amount: "",
+                                                                    method: "TRANSFERENCIA",
+                                                                    disciplines: plan.disciplines as string[]
+                                                                });
+                                                                setIsRenewalDialogOpen(true);
+                                                            }}
+                                                        >
+                                                            Renovar
+                                                        </Button>
+                                                    )}
                                                     {role === 'admin' && (
                                                         <div className="flex items-center gap-1">
                                                             <Button
@@ -827,9 +1007,14 @@ export default function StudentDetailsPage() {
                                         .slice()
                                         .reverse()
                                         .filter(entry => {
+                                            // ── Filter 1: Only show entries with a classDate (Completed classes or manual adjustments)
+                                            // This excludes "Nuevo Plan" and "Renovación" which don't have a classDate.
+                                            if (!(entry as unknown as { classDate: Date | null }).classDate) return false
+
                                             if (historySearch && !entry.activity.toLowerCase().includes(historySearch.toLowerCase())) return false
-                                            // Filter by class date (classDate) if available, otherwise fall back to registration date
-                                            const entryDate = (entry as unknown as { classDate: Date | null }).classDate || entry.date
+                                            
+                                            // Filter by class date (classDate)
+                                            const entryDate = (entry as unknown as { classDate: Date | null }).classDate!
                                             if (historyDateFrom && new Date(entryDate) < new Date(`${historyDateFrom}T00:00:00`)) return false
                                             if (historyDateTo && new Date(entryDate) > new Date(`${historyDateTo}T23:59:59`)) return false
                                             return true

@@ -49,7 +49,7 @@ export default function PrivacyPage() {
                         </div>
                         <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
                             En Atria Fitness, la seguridad de tu información es nuestra prioridad. Recopilamos únicamente los datos
-                            mínimos necesarios para el funcionamiento del gimnasio: nombre, correo electrónico y datos de contacto
+                            mínimos necesarios para el funcionamiento del estudio: nombre, correo electrónico y datos de contacto
                             para la gestión de clases, asistencia y cobros. No vendemos ni compartimos tu información con terceros.
                         </p>
                     </section>

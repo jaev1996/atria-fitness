@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Atria Fitness",
-  description: "Sistema de Gestión para Centro Fitness",
+  description: "Sistema de Gestión para Estudio Fitness",
   icons: {
     icon: [
       { url: '/icon.png?v=2', type: 'image/png' },

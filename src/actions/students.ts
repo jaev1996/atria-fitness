@@ -2,10 +2,11 @@
 
 import prisma from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
-import { StudentStatus, PaymentMethod, User, Prisma } from "@prisma/client"
+import { StudentStatus, User, Prisma } from "@prisma/client"
 import { supabaseAdmin } from "@/lib/supabase-admin"
 import { ensureRole } from "@/lib/auth-utils"
-import { AddStudentSchema, ProcessPaymentSchema, AddHistoryEntrySchema } from "@/lib/schemas"
+import { ProcessPaymentSchema, AddHistoryEntrySchema, AddStudentSchema, RenewPlanSchema } from "@/lib/schemas"
+import { formatZodError } from "@/lib/utils"
 
 export async function getStudents() {
     const user = await ensureRole(['admin', 'instructor'])
@@ -107,7 +108,12 @@ export async function addStudent(data: {
     disciplines?: string[]
 }) {
     await ensureRole(['admin'])
-    const parsed = AddStudentSchema.parse(data)
+    let parsed
+    try {
+        parsed = AddStudentSchema.parse(data)
+    } catch (e) {
+        throw new Error(formatZodError(e))
+    }
     const { planType, discipline, disciplines, ...studentData } = parsed
 
     // 1. Explicit duplicate checks
@@ -308,17 +314,21 @@ export async function updateStudentPlan(planId: string, studentId: string, disci
 }
 
 // Student Payments / History
-export async function processStudentPayment(data: {
+export async function processPayment(data: {
     studentId: string,
     amount: number,
-    method: PaymentMethod,
+    method: 'EFECTIVO' | 'TRANSFERENCIA' | 'TARJETA' | 'OTRO',
     planName: string,
     credits: number,
     discipline?: string,
     disciplines?: string[]
 }) {
     await ensureRole(['admin'])
-    ProcessPaymentSchema.parse(data)
+    try {
+        ProcessPaymentSchema.parse(data)
+    } catch (e) {
+        throw new Error(formatZodError(e))
+    }
 
     // ── Idempotency guard: reject duplicate payments within 30 seconds ──────
     const thirtySecondsAgo = new Date(Date.now() - 30_000)
@@ -335,16 +345,32 @@ export async function processStudentPayment(data: {
     }
     // ────────────────────────────────────────────────────────────────────────
 
-    return await prisma.$transaction([
-        prisma.studentPayment.create({
+    // Check if student already has an active plan
+    const existingActivePlan = await prisma.studentPlan.findFirst({
+        where: { studentId: data.studentId, isActive: true }
+    })
+    
+    if (existingActivePlan) {
+        throw new Error(`La alumna ya tiene un plan activo (${existingActivePlan.originalName}). Utiliza la opción de "Renovar Plan" si deseas agregar créditos.`)
+    }
+
+    return await prisma.$transaction(async (tx) => {
+        // Enforce single active plan: deactivate ALL existing plans for this student
+        await tx.studentPlan.updateMany({
+            where: { studentId: data.studentId, isActive: true },
+            data: { isActive: false }
+        })
+
+        const payment = await tx.studentPayment.create({
             data: {
                 studentId: data.studentId,
                 amount: data.amount,
                 method: data.method,
-                concept: data.planName
+                concept: `Nuevo Plan: ${data.planName}`
             }
-        }),
-        prisma.studentPlan.create({
+        })
+
+        const plan = await tx.studentPlan.create({
             data: {
                 studentId: data.studentId,
                 discipline: data.disciplines && data.disciplines.length > 1 
@@ -356,18 +382,107 @@ export async function processStudentPayment(data: {
                 isActive: true
             }
         })
-    ])
+
+        // Add history entry for the new plan
+        await tx.studentHistory.create({
+            data: {
+                studentId: data.studentId,
+                activity: `Nuevo Plan: ${data.planName}`,
+                notes: `Créditos iniciales: ${data.credits > 900 ? 'Ilimitados' : data.credits}`,
+                cost: data.amount
+            }
+        })
+
+        return { payment, plan }
+    })
+
+    revalidatePath(`/dashboard/students/${data.studentId}`)
+    revalidatePath('/dashboard/students')
 }
 
-export async function addHistoryEntry(studentId: string, data: { activity: string, notes?: string, cost?: number }) {
+export async function renewPlan(data: {
+    studentId: string,
+    planId: string,
+    amount: number,
+    method: 'EFECTIVO' | 'TRANSFERENCIA' | 'TARJETA' | 'OTRO',
+    planName: string,
+    credits: number,
+    disciplines: string[]
+}) {
     await ensureRole(['admin'])
-    AddHistoryEntrySchema.parse(data)
+    try {
+        RenewPlanSchema.parse(data)
+    } catch (e) {
+        throw new Error(formatZodError(e))
+    }
+
+    return await prisma.$transaction(async (tx) => {
+        // Find the active plan
+        const existingPlan = await tx.studentPlan.findUnique({
+            where: { id: data.planId }
+        })
+
+        if (!existingPlan) throw new Error("No se encontró el plan a renovar.")
+        if (existingPlan.studentId !== data.studentId) throw new Error("El plan no pertenece a esta alumna.")
+        if (existingPlan.credits > 1) {
+            throw new Error(`No es necesario renovar todavía. El plan actual aún tiene ${existingPlan.credits} créditos disponibles. Solo se permite renovar con 0 o 1 crédito restante.`)
+        }
+
+        // 1. Create Payment
+        await tx.studentPayment.create({
+            data: {
+                studentId: data.studentId,
+                amount: data.amount,
+                method: data.method,
+                concept: `Renovación: ${data.planName}`
+            }
+        })
+
+        // 2. Update existing plan (Top-up credits and reconfigure disciplines)
+        const updatedPlan = await tx.studentPlan.update({
+            where: { id: data.planId },
+            data: {
+                credits: { increment: data.credits },
+                disciplines: data.disciplines,
+                discipline: data.disciplines.length > 1 ? 'Múltiples' : data.disciplines[0],
+                originalName: data.planName,
+                isActive: true // Ensure it stays active
+            }
+        })
+
+        // 3. Create History Entry
+        await tx.studentHistory.create({
+            data: {
+                studentId: data.studentId,
+                activity: `Renovación: ${data.planName}`,
+                notes: `+${data.credits} créditos agregados. Disciplinas: ${data.disciplines.join(", ")}`,
+                cost: data.amount
+            }
+        })
+
+        return updatedPlan
+    })
+
+    revalidatePath(`/dashboard/students/${data.studentId}`)
+}
+
+export async function addHistoryEntry(
+    studentId: string,
+    data: { activity: string, notes?: string, cost?: number, classDate?: string }
+) {
+    await ensureRole(['admin'])
+    try {
+        AddHistoryEntrySchema.parse(data)
+    } catch (e) {
+        throw new Error(formatZodError(e))
+    }
     const entry = await prisma.studentHistory.create({
         data: {
             studentId,
             activity: data.activity,
             notes: data.notes,
-            cost: data.cost || 0
+            cost: data.cost || 0,
+            classDate: data.classDate ? new Date(`${data.classDate}T00:00:00.000Z`) : null
         }
     })
     revalidatePath(`/dashboard/students/${studentId}`)

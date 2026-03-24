@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache"
 import { ClassSession, Prisma } from "@prisma/client"
 import { ensureRole } from "@/lib/auth-utils"
 import { AddClassSchema, EnrollStudentSchema, RemoveAttendeeSchema } from "@/lib/schemas"
+import { formatZodError } from "@/lib/utils"
 
 export async function getClasses(startDateStr?: string, endDateStr?: string, instructorId?: string) {
     const where: Prisma.ClassSessionWhereInput = {}
@@ -42,7 +43,12 @@ export async function addClass(data: {
     observation?: string
 }) {
     await ensureRole(['admin'])
-    const parsed = AddClassSchema.parse(data)
+    let parsed
+    try {
+        parsed = AddClassSchema.parse(data)
+    } catch (e) {
+        throw new Error(formatZodError(e))
+    }
     // Use a robust UTC midnight constructor: "YYYY-MM-DD" -> "YYYY-MM-DDT00:00:00.000Z"
     const classDate = new Date(`${parsed.date}T00:00:00.000Z`)
 
@@ -210,7 +216,8 @@ async function handleClassCompletion(classId: string) {
                     where: { id: plan.id },
                     data: {
                         credits: plan.originalName === 'Ilimitado' ? plan.credits : plan.credits - 1,
-                        isActive: plan.originalName !== 'Ilimitado' && plan.credits - 1 <= 0 ? false : true
+                        // Keep the plan active even at 0 credits so it can be renewed from the UI
+                        isActive: true 
                     }
                 }),
                 prisma.attendee.update({
@@ -240,7 +247,11 @@ export async function deleteClass(id: string) {
 // Enrollment
 export async function enrollStudent(classId: string, studentId: string, type: 'STANDARD' | 'COURTESY' = 'STANDARD') {
     const user = await ensureRole(['admin'])
-    EnrollStudentSchema.parse({ classId, studentId, type })
+    try {
+        EnrollStudentSchema.parse({ classId, studentId, type })
+    } catch (e) {
+        throw new Error(formatZodError(e))
+    }
 
     const classData = await prisma.classSession.findUnique({
         where: { id: classId },

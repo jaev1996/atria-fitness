@@ -7,6 +7,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin"
 import { Prisma } from "@prisma/client"
 import { ensureRole } from "@/lib/auth-utils"
 import { AddInstructorSchema, AddInstructorPaymentSchema } from "@/lib/schemas"
+import { formatZodError } from "@/lib/utils"
 
 export async function getInstructors() {
     console.log("Action: getInstructors called")
@@ -25,7 +26,12 @@ export async function getInstructors() {
 
 export async function addInstructor(data: { name: string, email: string, phone?: string, specialties: string[], bio?: string }) {
     await ensureRole(['admin'])
-    AddInstructorSchema.parse(data)
+    
+    try {
+        AddInstructorSchema.parse(data)
+    } catch (e) {
+        throw new Error(formatZodError(e))
+    }
 
     // 0. Explicit duplicate checks
     const existing = await prisma.user.findFirst({
@@ -90,17 +96,22 @@ export async function updateInstructor(id: string, data: Prisma.UserUpdateInput)
 
     // Check for duplicates excluding self
     if (data.email || data.phone || data.name) {
-        const existing = await prisma.user.findFirst({
-            where: {
-                OR: [
-                    data.email ? { email: data.email as string } : {},
-                    data.phone ? { phone: data.phone as string } : {},
-                    data.name ? { name: { equals: data.name as string, mode: 'insensitive' as Prisma.QueryMode } } : {}
-                ].filter(c => Object.keys(c).length > 0),
-                id: { not: id },
-                role: 'INSTRUCTOR'
-            }
-        })
+        let existing
+        try {
+            existing = await prisma.user.findFirst({
+                where: {
+                    OR: [
+                        data.email ? { email: data.email as string } : {},
+                        data.phone ? { phone: data.phone as string } : {},
+                        data.name ? { name: { equals: data.name as string, mode: 'insensitive' as Prisma.QueryMode } } : {}
+                    ].filter(c => Object.keys(c).length > 0),
+                    id: { not: id },
+                    role: 'INSTRUCTOR'
+                }
+            })
+        } catch (e) {
+            console.error("Error checking duplicates:", e)
+        }
 
         if (existing) {
             if (data.email && existing.email === data.email) throw new Error("Ya existe otro instructor con este correo electrónico.")
@@ -171,7 +182,11 @@ export async function addInstructorPayment(data: {
     notes?: string
 }) {
     await ensureRole(['admin'])
-    AddInstructorPaymentSchema.parse(data)
+    try {
+        AddInstructorPaymentSchema.parse(data)
+    } catch (e) {
+        throw new Error(formatZodError(e))
+    }
 
     // ── Idempotency guard: reject duplicate payments within 30 seconds ──────
     const thirtySecondsAgo = new Date(Date.now() - 30_000)

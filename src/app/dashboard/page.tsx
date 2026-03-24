@@ -47,7 +47,7 @@ export default function DashboardPage() {
 
     const kpis = [
         {
-            label: role === "instructor" ? "Mis Clases Hoy" : "Clases del Centro Hoy",
+            label: role === "instructor" ? "Mis Clases Hoy" : "Clases del Estudio Hoy",
             value: data?.todayCount ?? "—",
             sub: "sesiones activas",
             icon: CalendarCheck,
@@ -100,7 +100,7 @@ export default function DashboardPage() {
                     <p className="text-slate-500 mt-1">
                         {role === "instructor"
                             ? "Este es el resumen de tus clases y alumnas para hoy."
-                            : "Resumen general de la actividad del centro."}
+                            : "Resumen general de la actividad del estudio."}
                     </p>
                 </div>
 
@@ -132,7 +132,7 @@ export default function DashboardPage() {
                 <div className="mt-8">
                     <Card className="p-6 border-none shadow-sm">
                         <h2 className="text-xl font-semibold mb-5 text-slate-800 dark:text-slate-100">
-                            {role === "instructor" ? "Mis Próximas Clases" : "Próximas Clases del Centro"}
+                            {role === "instructor" ? "Mis Próximas Clases" : "Próximas Clases del Estudio"}
                         </h2>
 
                         {dataLoading ? (
@@ -147,7 +147,7 @@ export default function DashboardPage() {
                                 <p className="text-slate-500 text-sm">
                                     {role === "instructor"
                                         ? "No tienes clases programadas próximamente."
-                                        : "No hay clases programadas en el centro."}
+                                        : "No hay clases programadas en el estudio."}
                                 </p>
                             </div>
                         ) : (
@@ -155,17 +155,17 @@ export default function DashboardPage() {
                                 {data?.upcoming.map((c) => (
                                     <div
                                         key={c.id}
-                                        className="flex items-center justify-between rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 px-4 py-3 shadow-xs hover:shadow-sm transition-shadow"
+                                        className="flex items-center justify-between rounded-xl border border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 sm:px-4 py-3 shadow-xs hover:shadow-sm transition-shadow overflow-hidden"
                                     >
-                                        <div className="flex items-center gap-4">
-                                            <div className="bg-brand-primary/10 p-2 rounded-full shrink-0">
-                                                <Clock className="h-5 w-5 text-brand-primary" />
+                                        <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
+                                            <div className="bg-brand-primary/10 p-1.5 sm:p-2 rounded-full shrink-0">
+                                                <Clock className="h-4 w-4 sm:h-5 text-brand-primary" />
                                             </div>
-                                            <div className="min-w-0">
-                                                <p className="font-semibold text-slate-800 dark:text-slate-100 truncate">
+                                            <div className="min-w-0 flex-1">
+                                                <p className="font-semibold text-slate-800 dark:text-slate-100 truncate text-sm sm:text-base">
                                                     {c.type} {c.observation ? `(${c.observation})` : ''}
                                                 </p>
-                                                <p className="text-sm text-slate-500 truncate">
+                                                <p className="text-[10px] sm:text-sm text-slate-500 truncate mt-0.5">
                                                     {role === "admin" && (
                                                         <span className="text-brand-primary font-medium">{c.instructorName} • </span>
                                                     )}

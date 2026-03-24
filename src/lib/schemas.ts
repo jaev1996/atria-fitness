@@ -71,10 +71,10 @@ export const ProcessPaymentSchema = z.object({
     studentId: idSchema,
     // Zod v4: error message for wrong type uses `message` directly on number()
     amount: z.number().positive('El monto debe ser positivo.').max(9999, 'El monto parece inusualmente alto.'),
-    method: z.enum(['EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'OTRO'], { message: 'Método de pago inválido.' }),
-    planName: z.string().min(1).max(100),
-    credits: z.number().int('Los créditos deben ser un número entero.').positive().max(9999),
-    discipline: z.string().max(100).optional(),
+    method: z.enum(['EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'OTRO'], { message: 'El método de pago no es válido.' }),
+    planName: z.string().min(1, 'El nombre del plan es obligatorio.').max(100, 'El nombre del plan es demasiado largo.'),
+    credits: z.number().int('Los créditos deben ser un número entero.').positive('Los créditos deben ser mayores a 0.').max(9999, 'Número de créditos inválido.'),
+    discipline: z.string().max(100, 'La disciplina es demasiado larga.').optional(),
     disciplines: z.array(z.string().max(100)).optional(),
 })
 
@@ -82,6 +82,7 @@ export const AddHistoryEntrySchema = z.object({
     activity: z.string().min(1, 'La actividad es obligatoria.').max(200).trim(),
     notes: z.string().max(1000).optional(),
     cost: z.number().nonnegative().max(9999).optional(),
+    classDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().or(z.literal('')),
 })
 
 // ── Clases ───────────────────────────────────────────────────────────────────
@@ -101,7 +102,17 @@ export const AddClassSchema = z.object({
 export const EnrollStudentSchema = z.object({
     classId: idSchema,
     studentId: idSchema,
-    type: z.enum(['STANDARD', 'COURTESY']).optional(),
+    type: z.enum(['STANDARD', 'COURTESY'], { message: 'El tipo de inscripción no es válido.' }).optional(),
+})
+
+export const RenewPlanSchema = z.object({
+    studentId: idSchema,
+    planId: idSchema,
+    amount: z.number().positive('El monto debe ser positivo.').max(99999, 'El monto es demasiado alto.'),
+    method: z.enum(['EFECTIVO', 'TRANSFERENCIA', 'TARJETA', 'OTRO'], { message: 'El método de pago no es válido.' }),
+    planName: z.string().min(1, 'El nombre del plan es obligatorio.').max(100, 'El nombre del plan es demasiado largo.'),
+    credits: z.number().int('Los créditos deben ser un número entero.').positive('Los créditos deben ser mayores a 0.').max(9999, 'Número de créditos inválido.'),
+    disciplines: z.array(z.string().max(100)).min(1, 'Debes seleccionar al menos una disciplina.').max(20, 'Demasiadas disciplinas.'),
 })
 
 export const RemoveAttendeeSchema = z.object({
@@ -112,10 +123,10 @@ export const RemoveAttendeeSchema = z.object({
 // ── Instructores ─────────────────────────────────────────────────────────────
 
 export const AddInstructorSchema = z.object({
-    name: z.string().min(1, 'El nombre es obligatorio.').max(100, 'El nombre es demasiado largo.').trim(),
+    name: z.string().min(1, 'El nombre del instructor es obligatorio.').max(100, 'El nombre es demasiado largo.').trim(),
     email: z.string().email('El correo electrónico no tiene un formato válido.').max(200, 'El correo electrónico es demasiado largo.').trim(),
     phone: z.string().max(30, 'El teléfono es demasiado largo.').optional(),
-    specialties: z.array(z.string().max(100)).max(20, 'Demasiadas especialidades.').default([]),
+    specialties: z.array(z.string().max(100)).min(1, 'Debes seleccionar al menos una especialidad.').max(20, 'Demasiadas especialidades.').default([]),
     bio: z.string().max(2000, 'La biografía es demasiado larga.').optional(),
 })
 
