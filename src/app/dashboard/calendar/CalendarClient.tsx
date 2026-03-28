@@ -16,7 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ChevronLeft, ChevronRight, Plus, Users, School, Trash, Sparkles, AlertTriangle, ZoomIn, ZoomOut, Download, LayoutList, CalendarDays } from "lucide-react"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
+import { cn, formatTimeAMPM } from "@/lib/utils"
 import { ROOMS, RoomId } from "@/constants/config"
 import { StudentSearchSelect } from "@/components/dashboard/StudentSearchSelect"
 import { toPng } from "html-to-image"
@@ -688,8 +688,8 @@ export function CalendarClient({
                                                         onClick={() => handleAgendaClassClick(c)}
                                                     >
                                                         {/* Time */}
-                                                        <div className="text-sm font-bold text-slate-800 dark:text-slate-100 tabular-nums w-12 shrink-0">
-                                                            {c.startTime}
+                                                        <div className="text-sm font-bold text-slate-800 dark:text-slate-100 tabular-nums w-20 shrink-0">
+                                                            {formatTimeAMPM(c.startTime)}
                                                         </div>
                                                         {/* Status dot */}
                                                         <div className={cn(
@@ -772,17 +772,19 @@ export function CalendarClient({
                                     <div className="overflow-x-auto overflow-y-hidden rounded-lg border border-slate-200 dark:border-slate-700">
                                         <div className="min-w-[1000px] bg-white dark:bg-slate-800">
                                             {/* Header */}
-                                            <div className="grid grid-cols-[96px_repeat(6,1fr)] border-b dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 z-10 shadow-sm">
-                                                <div className="p-3 border-r dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-medium text-slate-500 text-center w-24 shrink-0">Hora</div>
-                                                {weekDates.map((date, i) => (
-                                                    <div key={i} className="p-3 border-r dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-medium text-slate-700 dark:text-slate-200 text-center flex-1">
-                                                        <div className="text-sm font-bold">{DAYS[i]}</div>
-                                                        <div className="text-[10px] text-slate-400 font-normal">
-                                                            {date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                                            {viewType === 'week' && (
+                                                <div className="grid grid-cols-[96px_repeat(6,1fr)] border-b dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 z-10 shadow-sm">
+                                                    <div className="p-3 border-r dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-medium text-slate-500 text-center w-24 shrink-0">Hora</div>
+                                                    {weekDates.map((date, i) => (
+                                                        <div key={i} className="p-3 border-r dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-medium text-slate-700 dark:text-slate-200 text-center flex-1">
+                                                            <div className="text-sm font-bold">{DAYS[i]}</div>
+                                                            <div className="text-[10px] text-slate-400 font-normal">
+                                                                {date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' })}
+                                                            </div>
                                                         </div>
-                                                    </div>
-                                                ))}
-                                            </div>
+                                                    ))}
+                                                </div>
+                                            )}
 
                                             {viewType === 'week' ? (
                                                 <>
@@ -795,9 +797,9 @@ export function CalendarClient({
                                                 >
                                                     <div className={cn(
                                                         "p-2 border-r dark:border-slate-700 text-slate-500 text-center flex items-center justify-center bg-slate-50/50 dark:bg-slate-900/50 w-24 shrink-0 transition-all",
-                                                        zoomLevel < 0.8 ? "text-[9px]" : "text-xs"
+                                                        zoomLevel < 0.8 ? "text-[8px]" : "text-[10px]"
                                                     )}>
-                                                        {hour.endsWith(':00') ? hour : (zoomLevel > 0.9 ? hour : "")}
+                                                        {hour.endsWith(':00') ? formatTimeAMPM(hour) : (zoomLevel > 0.9 ? formatTimeAMPM(hour) : "")}
                                                     </div>
                                                     {weekDates.map((date, i) => {
                                                         const dateStr = toYYYYMMDD(date)
@@ -915,7 +917,7 @@ export function CalendarClient({
                                                                             )}
                                                                             onClick={() => handleSlotClick(date, c.startTime)}
                                                                         >
-                                                                            <span className="font-bold">{c.startTime}</span> {c.type} {c.observation ? `(${c.observation})` : ''}
+                                                                            <span className="font-bold">{formatTimeAMPM(c.startTime)}</span> {c.type} {c.observation ? `(${c.observation})` : ''}
                                                                         </div>
                                                                     ))}
                                                                 </div>
@@ -974,7 +976,7 @@ export function CalendarClient({
                                     <Label>Hora (1 Hora de Duración)</Label>
                                     <Select value={formData.startTime} onValueChange={v => setFormData({ ...formData, startTime: v })} disabled={role === 'instructor'}>
                                         <SelectTrigger><SelectValue /></SelectTrigger>
-                                        <SelectContent>{HOURS.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}</SelectContent>
+                                        <SelectContent>{HOURS.map(h => <SelectItem key={h} value={h}>{formatTimeAMPM(h)}</SelectItem>)}</SelectContent>
                                     </Select>
                                 </div>
                             </div>

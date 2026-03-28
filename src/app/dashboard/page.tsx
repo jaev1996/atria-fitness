@@ -7,7 +7,7 @@ import { Sidebar } from "@/components/shared/sidebar"
 import { MobileNav } from "@/components/shared/mobile-nav"
 import { Users, CalendarCheck, Activity, Clock, TrendingUp } from "lucide-react"
 import { useAuth } from "@/hooks/useAuth"
-import { cn } from "@/lib/utils"
+import { cn, formatTimeAMPM } from "@/lib/utils"
 
 type DashboardData = Awaited<ReturnType<typeof getDashboardMetrics>>
 
@@ -183,7 +183,7 @@ export default function DashboardPage() {
                                         </div>
                                         <div className="text-right shrink-0 ml-4">
                                             <p className="font-semibold text-slate-700 dark:text-slate-300 tabular-nums">
-                                                {c.startTime}
+                                                {formatTimeAMPM(c.startTime)}
                                             </p>
                                             <div className="flex items-center justify-end gap-1 text-xs text-slate-500 mt-0.5">
                                                 <Users className="h-3 w-3" />

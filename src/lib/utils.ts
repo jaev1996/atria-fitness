@@ -34,3 +34,20 @@ export function formatZodError(error: unknown): string {
 
     return "Los datos proporcionados no son válidos."
 }
+
+/**
+ * Convierte una hora en formato 24h (HH:mm) a formato 12h (h:mm AM/PM).
+ */
+export function formatTimeAMPM(time24: string | null | undefined): string {
+    if (!time24) return "-"
+    try {
+        const [hoursStr, minutesStr] = time24.split(":")
+        let hours = parseInt(hoursStr)
+        const ampm = hours >= 12 ? "PM" : "AM"
+        hours = hours % 12
+        hours = hours ? hours : 12 // la hora '0' debe ser '12'
+        return `${hours}:${minutesStr} ${ampm}`
+    } catch {
+        return time24
+    }
+}

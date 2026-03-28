@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ArrowLeft, DollarSign, Users, Briefcase, Mail, Phone, Printer, CheckCircle2, History, Trash, ChevronDown, ChevronRight, Sparkles, Calendar, Clock, Eye } from "lucide-react"
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns"
 import { toast } from "sonner"
+import { formatTimeAMPM } from "@/lib/utils"
 import { useCurrency } from "@/components/providers/CurrencyProvider"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -407,7 +408,7 @@ export function InstructorDetailClient({
                                                         return (
                                                             <TableRow key={c.id}>
                                                                 <TableCell className="font-medium">{format(parseISO(toDateStr(c.date)), "dd/MM/yyyy")}</TableCell>
-                                                                <TableCell>{c.startTime}</TableCell>
+                                                                <TableCell>{formatTimeAMPM(c.startTime)}</TableCell>
                                                                 <TableCell>
                                                                     <Badge variant="outline" className="capitalize">{c.type} {c.observation ? `(${c.observation})` : ''}</Badge>
                                                                 </TableCell>
@@ -517,7 +518,7 @@ function PaymentAccordion({
             return `
                 <tr style="border-bottom:1px solid #e2e8f0">
                     <td style="padding:8px 6px;font-size:13px;color:#374151">${idx + 1}</td>
-                    <td style="padding:8px 6px;font-size:13px">${format(parseISO(toDateStr(cls.date)), 'dd/MM/yyyy')} ${cls.startTime}</td>
+                    <td style="padding:8px 6px;font-size:13px">${format(parseISO(toDateStr(cls.date)), 'dd/MM/yyyy')} ${formatTimeAMPM(cls.startTime)}</td>
                     <td style="padding:8px 6px;font-size:13px">${cls.type}${cls.observation ? ` (${cls.observation})` : ''}${cls.isPrivate ? ' ★' : ''}</td>
                     <td style="padding:8px 6px;font-size:13px">${roomName}</td>
                     <td style="padding:8px 6px;font-size:13px;text-align:center">${bookedAttendees.length}</td>
@@ -731,7 +732,7 @@ function PaymentAccordion({
                                         <Calendar className="h-3 w-3 text-slate-400" />
                                         <span className="text-sm font-medium">{format(parseISO(toDateStr(cls.date)), 'dd/MM/yyyy')}</span>
                                         <Clock className="h-3 w-3 text-slate-400" />
-                                        <span className="text-sm">{cls.startTime}</span>
+                                        <span className="text-sm">{formatTimeAMPM(cls.startTime)}</span>
                                     </span>
                                     <Badge variant="outline" className="text-xs capitalize shrink-0">{cls.type} {cls.observation ? `(${cls.observation})` : ''}</Badge>
                                     {cls.isPrivate && (
