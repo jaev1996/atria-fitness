@@ -105,7 +105,8 @@ export async function addStudent(data: {
     conditions?: string,
     emergencyContact?: string,
     sportsInfo?: string,
-    disciplines?: string[]
+    disciplines?: string[],
+    cedula: string
 }) {
     await ensureRole(['admin'])
     let parsed
@@ -121,13 +122,17 @@ export async function addStudent(data: {
         where: {
             OR: [
                 { phone: data.phone },
-                { name: { equals: data.name, mode: 'insensitive' as Prisma.QueryMode } }
+                { name: { equals: data.name, mode: 'insensitive' as Prisma.QueryMode } },
+                { cedula: data.cedula }
             ],
             role: 'STUDENT'
         }
     })
 
     if (existingStudent) {
+        if (existingStudent.cedula === data.cedula) {
+            throw new Error(`Esta cédula ya está registrada para otra alumna (${existingStudent.name}).`)
+        }
         if (existingStudent.phone === data.phone) {
             throw new Error(`Ese número de teléfono ya está registrado con otra alumna (${existingStudent.name}).`)
         }
@@ -178,6 +183,9 @@ export async function addStudent(data: {
                 if (targets.includes('phone')) {
                     throw new Error("Ese número de teléfono ya está registrado.")
                 }
+                if (targets.includes('cedula')) {
+                    throw new Error("Esta cédula ya está registrada en el sistema.")
+                }
             }
         }
         throw new Error("Ocurrió un error inesperado al guardar los datos de la alumna. Por favor intenta de nuevo.")
@@ -222,7 +230,8 @@ export async function updateStudent(id: string, data: Partial<User>) {
             where: {
                 OR: [
                     data.phone ? { phone: data.phone } : {},
-                    data.name ? { name: { equals: data.name, mode: 'insensitive' as Prisma.QueryMode } } : {}
+                    data.name ? { name: { equals: data.name, mode: 'insensitive' as Prisma.QueryMode } } : {},
+                    data.cedula ? { cedula: data.cedula } : {}
                 ].filter(condition => Object.keys(condition).length > 0),
                 id: { not: id },
                 role: 'STUDENT'
@@ -230,6 +239,9 @@ export async function updateStudent(id: string, data: Partial<User>) {
         })
 
         if (existingStudent) {
+            if (data.cedula && existingStudent.cedula === data.cedula) {
+                throw new Error(`Esta cédula ya está registrada para otra alumna (${existingStudent.name}).`)
+            }
             if (data.phone && existingStudent.phone === data.phone) {
                 throw new Error(`Este número de teléfono ya está registrado con otra alumna (${existingStudent.name}).`)
             }

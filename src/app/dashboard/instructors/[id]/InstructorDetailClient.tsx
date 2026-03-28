@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useMemo, useTransition } from "react"
+import { useState, useMemo, useTransition, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { addInstructorPayment, deleteInstructorPayment } from "@/actions/instructors"
+import { addInstructorPayment, deleteInstructorPayment, updateInstructor } from "@/actions/instructors"
 import { ROOMS, DISCIPLINES, Tier } from "@/constants/config"
 import { Sidebar } from "@/components/shared/sidebar"
 import { MobileNav } from "@/components/shared/mobile-nav"
@@ -14,9 +14,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Separator } from "@/components/ui/separator"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { ArrowLeft, DollarSign, Users, Briefcase, Mail, Phone, Printer, CheckCircle2, History, Trash, ChevronDown, ChevronRight, Sparkles, Calendar, Clock, Eye } from "lucide-react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Edit, ArrowLeft, DollarSign, Users, Briefcase, Mail, Phone, Printer, CheckCircle2, History, Trash, ChevronDown, ChevronRight, Sparkles, Calendar, Clock, Eye } from "lucide-react"
 import { format, startOfMonth, endOfMonth, isWithinInterval, parseISO } from "date-fns"
 import { toast } from "sonner"
 import { formatTimeAMPM } from "@/lib/utils"
@@ -60,6 +62,7 @@ interface InstructorDetailClientProps {
     instructor: {
         id: string
         name: string
+        cedula: string
         email: string
         phone: string
         bio: string
@@ -119,6 +122,16 @@ export function InstructorDetailClient({
     const router = useRouter()
     const { formatCurrency } = useCurrency()
     const [isPending, startTransition] = useTransition()
+    const isMounted = useSyncExternalStore(() => () => {}, () => true, () => false)
+    const [isEditingProfile, setIsEditingProfile] = useState(false)
+    const [editForm, setEditForm] = useState({
+        name: instructor.name,
+        cedula: instructor.cedula,
+        email: instructor.email,
+        phone: instructor.phone,
+        bio: instructor.bio,
+        specialties: instructor.specialties
+    })
 
     // Held locally so we can optimistically update without a full page reload
     const [payments, setPayments] = useState<PaymentWithClasses[]>(initialPayments)
@@ -213,6 +226,33 @@ export function InstructorDetailClient({
         })
     }
 
+    const handleUpdateProfile = () => {
+        if (!editForm.name || !editForm.cedula || !editForm.email) {
+            toast.error("Nombre, Cédula y Email son obligatorios")
+            return
+        }
+
+        startTransition(async () => {
+            try {
+                await updateInstructor(instructor.id, editForm)
+                toast.success("Perfil actualizado correctamente")
+                setIsEditingProfile(false)
+                router.refresh()
+            } catch (err: unknown) {
+                toast.error(err instanceof Error ? err.message : "Error al actualizar perfil")
+            }
+        })
+    }
+
+    const toggleEditSpecialty = (s: string) => {
+        setEditForm(prev => ({
+            ...prev,
+            specialties: prev.specialties.includes(s)
+                ? prev.specialties.filter(x => x !== s)
+                : [...prev.specialties, s]
+        }))
+    }
+
     return (
         <div className="flex flex-col md:flex-row h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
             <Sidebar />
@@ -223,11 +263,93 @@ export function InstructorDetailClient({
                     <Button variant="ghost" size="icon" onClick={() => router.back()}>
                         <ArrowLeft className="h-4 w-4" />
                     </Button>
-                    <div>
+                    <div className="flex-1">
                         <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100">{instructor.name}</h1>
                         <p className="text-slate-500 text-sm">Detalle de Instructor y Liquidaciones</p>
                     </div>
+                    <Button variant="outline" size="sm" onClick={() => setIsEditingProfile(true)}>
+                        <Edit className="h-4 w-4 mr-2" /> Editar Perfil
+                    </Button>
                 </div>
+
+                {isMounted && (
+                    <Dialog open={isEditingProfile} onOpenChange={setIsEditingProfile}>
+                        <DialogContent className="max-w-2xl">
+                        <DialogHeader>
+                            <DialogTitle>Editar Perfil del Instructor</DialogTitle>
+                        </DialogHeader>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+                            <div className="grid gap-2">
+                                <Label>Nombre Completo *</Label>
+                                <Input value={editForm.name} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({...editForm, name: e.target.value})} />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label>Cédula de Identidad *</Label>
+                                <div className="flex gap-2">
+                                    <Select 
+                                        value={editForm.cedula?.startsWith('E') ? 'E' : 'V'} 
+                                        onValueChange={(v: string) => {
+                                            const currentNum = editForm.cedula?.replace(/^[VE]/, '') || "";
+                                            setEditForm({ ...editForm, cedula: `${v}${currentNum}` });
+                                        }}
+                                    >
+                                        <SelectTrigger className="w-[70px]">
+                                            <SelectValue placeholder="V/E" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="V">V</SelectItem>
+                                            <SelectItem value="E">E</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <Input 
+                                        value={editForm.cedula?.replace(/^[VE]/, '') ?? ""} 
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                                            const prefix = editForm.cedula?.startsWith('E') ? 'E' : 'V';
+                                            const val = e.target.value.replace(/\D/g, '').substring(0, 9);
+                                            setEditForm({ ...editForm, cedula: `${prefix}${val}` });
+                                        }} 
+                                        placeholder="Número de cédula"
+                                        className="flex-1"
+                                    />
+                                </div>
+                            </div>
+                            <div className="grid gap-2">
+                                <Label>Correo Electrónico *</Label>
+                                <Input value={editForm.email} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({...editForm, email: e.target.value})} />
+                            </div>
+                            <div className="grid gap-2">
+                                <Label>Teléfono</Label>
+                                <Input value={editForm.phone} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({...editForm, phone: e.target.value})} />
+                            </div>
+                            <div className="col-span-2 grid gap-2">
+                                <Label>Biografía</Label>
+                                <Input value={editForm.bio} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEditForm({...editForm, bio: e.target.value})} />
+                            </div>
+                            <div className="col-span-2 grid gap-2">
+                                <Label>Especialidades</Label>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 border p-3 rounded-lg bg-slate-50 dark:bg-slate-900/50">
+                                    {DISCIPLINES.map(s => (
+                                        <div key={s} className="flex items-center space-x-2">
+                                            <Checkbox 
+                                                id={`edit-spec-${s}`} 
+                                                checked={editForm.specialties.includes(s)}
+                                                onCheckedChange={() => toggleEditSpecialty(s)}
+                                            />
+                                            <label htmlFor={`edit-spec-${s}`} className="text-sm font-medium cursor-pointer">{s}</label>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsEditingProfile(false)}>Cancelar</Button>
+                            <Button onClick={handleUpdateProfile} disabled={isPending}>
+                                {isPending ? "Guardando..." : "Guardar Cambios"}
+                            </Button>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
+                )}
 
                 <Tabs defaultValue="payroll" className="space-y-4">
                     <TabsList className="print:hidden bg-white dark:bg-slate-800 shadow-sm">
@@ -248,7 +370,12 @@ export function InstructorDetailClient({
                                         {instructor.name.charAt(0)}
                                     </div>
                                     <div>
-                                        <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">{instructor.name}</h3>
+                                        <div className="flex items-center gap-2">
+                                            <h3 className="text-xl font-bold text-slate-800 dark:text-slate-100">{instructor.name}</h3>
+                                            <Badge variant="outline" className="text-[10px] font-mono h-5 bg-slate-50">
+                                                {instructor.cedula}
+                                            </Badge>
+                                        </div>
                                         <div className="flex flex-wrap gap-2 mt-2">
                                             {instructor.specialties.map(s => (
                                                 <Badge key={s} variant="secondary">{s}</Badge>

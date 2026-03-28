@@ -20,6 +20,7 @@ import Link from "next/link"
 import { toast } from "sonner"
 import { cn, formatDateUTC, formatDateLocal } from "@/lib/utils"
 import { useAuth } from "@/hooks/useAuth"
+import { Badge } from "@/components/ui/badge"
 import { DISCIPLINES } from "@/constants/config"
 import { useCurrency } from "@/components/providers/CurrencyProvider"
 
@@ -109,6 +110,7 @@ export default function StudentDetailsPage() {
                     setStudent(studentData)
                     setEditProfileForm({
                         name: studentData.name,
+                        cedula: studentData.cedula ?? "",
                         phone: studentData.phone ?? "",
                         email: studentData.email,
                         emergencyContact: studentData.emergencyContact ?? "",
@@ -373,6 +375,36 @@ export default function StudentDetailsPage() {
                                                     <Input value={editProfileForm.email ?? ""} onChange={e => setEditProfileForm({ ...editProfileForm, email: e.target.value })} />
                                                 </div>
                                                 <div className="grid gap-2">
+                                                    <Label>Cédula de Identidad</Label>
+                                                    <div className="flex gap-2">
+                                                        <Select 
+                                                            value={editProfileForm.cedula?.startsWith('E') ? 'E' : 'V'} 
+                                                            onValueChange={(v) => {
+                                                                const currentNum = editProfileForm.cedula?.replace(/^[VE]/, '') || "";
+                                                                setEditProfileForm({ ...editProfileForm, cedula: `${v}${currentNum}` });
+                                                            }}
+                                                        >
+                                                            <SelectTrigger className="w-[70px]">
+                                                                <SelectValue placeholder="V/E" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="V">V</SelectItem>
+                                                                <SelectItem value="E">E</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                        <Input 
+                                                            value={editProfileForm.cedula?.replace(/^[VE]/, '') ?? ""} 
+                                                            onChange={e => {
+                                                                const prefix = editProfileForm.cedula?.startsWith('E') ? 'E' : 'V';
+                                                                const val = e.target.value.replace(/\D/g, '').substring(0, 9);
+                                                                setEditProfileForm({ ...editProfileForm, cedula: `${prefix}${val}` });
+                                                            }} 
+                                                            placeholder="Número de cédula"
+                                                            className="flex-1"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="grid gap-2">
                                                     <Label>Contacto Emergencia</Label>
                                                     <Input value={editProfileForm.emergencyContact ?? ""} onChange={e => setEditProfileForm({ ...editProfileForm, emergencyContact: e.target.value })} />
                                                 </div>
@@ -404,6 +436,9 @@ export default function StudentDetailsPage() {
                                     <Label className="text-slate-500">Nombre</Label>
                                     <div className="font-medium text-lg flex items-center gap-2">
                                         {student.name}
+                                        <Badge variant="outline" className="text-[10px] font-mono h-5 bg-slate-50">
+                                            {student.cedula}
+                                        </Badge>
                                         {student.status === 'GUEST' && <span className="bg-amber-100 text-amber-800 text-xs px-2 py-0.5 rounded-full">Invitada</span>}
                                     </div>
                                 </div>

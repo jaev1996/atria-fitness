@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useSyncExternalStore } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogTrigger, DialogTitle, DialogDescription } 
 
 export function MobileNav() {
     const [open, setOpen] = useState(false)
+    const isMounted = useSyncExternalStore(() => () => {}, () => true, () => false)
     const pathname = usePathname()
     const { logout, role } = useAuth(false)
 
@@ -35,8 +36,9 @@ export function MobileNav() {
                 <span className="text-xl">Atria</span>
             </Link>
 
-            <Dialog open={open} onOpenChange={setOpen}>
-                <DialogTrigger asChild>
+            {isMounted && (
+                <Dialog open={open} onOpenChange={setOpen}>
+                    <DialogTrigger asChild>
                     <Button variant="ghost" size="icon" className="md:hidden">
                         <Menu className="h-6 w-6" />
                     </Button>
@@ -85,6 +87,7 @@ export function MobileNav() {
                     </div>
                 </DialogContent>
             </Dialog>
+            )}
         </div>
     )
 }

@@ -53,6 +53,7 @@ const VALID_PLANS = ['Sin Plan', 'Clase Suelta', 'Pack 4 Clases', 'Pack 8 Clases
 
 export const AddStudentSchema = z.object({
     name: z.string().min(1, 'El nombre es obligatorio.').max(100, 'El nombre es demasiado largo (máximo 100 caracteres).').trim(),
+    cedula: z.string().min(6, 'La cédula es muy corta.').max(12, 'La cédula es muy larga.').regex(/^[VE]\d+$/, 'Formato de cédula inválido (debe empezar con V o E seguido de números).').trim(),
     phone: z.string().min(1, 'El teléfono es obligatorio.').max(30, 'El número de teléfono es demasiado largo.').trim(),
     email: z.string().email('El correo electrónico no tiene un formato válido.').max(200, 'El correo electrónico es demasiado largo.').trim().optional().or(z.literal('')),
     planType: z.enum(VALID_PLANS).optional(),
@@ -124,6 +125,7 @@ export const RemoveAttendeeSchema = z.object({
 
 export const AddInstructorSchema = z.object({
     name: z.string().min(1, 'El nombre del instructor es obligatorio.').max(100, 'El nombre es demasiado largo.').trim(),
+    cedula: z.string().regex(/^[VE]\d+$/, "Formato de cédula inválido (ej: V12345678)").min(7, "La cédula es muy corta").max(10, "La cédula es muy larga"),
     email: z.string().email('El correo electrónico no tiene un formato válido.').max(200, 'El correo electrónico es demasiado largo.').trim(),
     phone: z.string().max(30, 'El teléfono es demasiado largo.').optional(),
     specialties: z.array(z.string().max(100)).min(1, 'Debes seleccionar al menos una especialidad.').max(20, 'Demasiadas especialidades.').default([]),

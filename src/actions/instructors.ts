@@ -24,7 +24,7 @@ export async function getInstructors() {
     }
 }
 
-export async function addInstructor(data: { name: string, email: string, phone?: string, specialties: string[], bio?: string }) {
+export async function addInstructor(data: { name: string, cedula: string, email: string, phone?: string, specialties: string[], bio?: string }) {
     await ensureRole(['admin'])
     
     try {
@@ -38,17 +38,18 @@ export async function addInstructor(data: { name: string, email: string, phone?:
         where: {
             OR: [
                 { email: data.email },
+                { cedula: data.cedula },
                 data.phone ? { phone: data.phone } : {},
                 { name: { equals: data.name, mode: 'insensitive' as Prisma.QueryMode } }
-            ].filter(c => Object.keys(c).length > 0),
-            role: 'INSTRUCTOR'
+            ].filter(c => Object.keys(c).length > 0)
         }
     })
 
     if (existing) {
-        if (existing.email === data.email) throw new Error("Ya existe un instructor registrado con este correo electrónico.")
-        if (data.phone && existing.phone === data.phone) throw new Error(`Este número de teléfono ya está registrado con otro instructor (${existing.name}).`)
-        if (existing.name.toLowerCase() === data.name.toLowerCase()) throw new Error(`Ya existe un instructor registrado con el nombre "${data.name}".`)
+        if (existing.email === data.email) throw new Error("Ya existe un usuario registrado con este correo electrónico.")
+        if (existing.cedula === data.cedula) throw new Error(`Esta cédula ya está registrada para otro usuario (${existing.name}).`)
+        if (data.phone && existing.phone === data.phone) throw new Error(`Este número de teléfono ya está registrado con otro usuario (${existing.name}).`)
+        if (existing.name.toLowerCase() === data.name.toLowerCase() && existing.role === 'INSTRUCTOR') throw new Error(`Ya existe un instructor registrado con el nombre "${data.name}".`)
     }
 
     // 1. Create User in Supabase Auth via Admin API
@@ -73,6 +74,7 @@ export async function addInstructor(data: { name: string, email: string, phone?:
             data: {
                 id: authUser.user.id,
                 name: data.name,
+                cedula: data.cedula,
                 email: data.email,
                 phone: data.phone,
                 specialties: data.specialties,
@@ -102,11 +104,11 @@ export async function updateInstructor(id: string, data: Prisma.UserUpdateInput)
                 where: {
                     OR: [
                         data.email ? { email: data.email as string } : {},
+                        data.cedula ? { cedula: data.cedula as string } : {},
                         data.phone ? { phone: data.phone as string } : {},
                         data.name ? { name: { equals: data.name as string, mode: 'insensitive' as Prisma.QueryMode } } : {}
                     ].filter(c => Object.keys(c).length > 0),
-                    id: { not: id },
-                    role: 'INSTRUCTOR'
+                    id: { not: id }
                 }
             })
         } catch (e) {
@@ -114,9 +116,12 @@ export async function updateInstructor(id: string, data: Prisma.UserUpdateInput)
         }
 
         if (existing) {
-            if (data.email && existing.email === data.email) throw new Error("Ya existe otro instructor con este correo electrónico.")
-            if (data.phone && existing.phone === data.phone) throw new Error(`Este número de teléfono ya está registrado con otro instructor (${existing.name}).`)
-            if (data.name && (data.name as string).toLowerCase() === existing.name.toLowerCase()) throw new Error(`Ya existe otro instructor con el nombre "${data.name}".`)
+            if (data.email && existing.email === data.email) throw new Error("Ya existe otro usuario con este correo electrónico.")
+            if (data.cedula && existing.cedula === data.cedula) throw new Error(`Esta cédula ya está registrada para otro usuario (${existing.name}).`)
+            if (data.phone && existing.phone === data.phone) throw new Error(`Este número de teléfono ya está registrado con otro usuario (${existing.name}).`)
+            if (data.name && (data.name as string).toLowerCase() === existing.name.toLowerCase() && existing.role === 'INSTRUCTOR') {
+                throw new Error(`Ya existe otro instructor con el nombre "${data.name}".`)
+            }
         }
     }
 

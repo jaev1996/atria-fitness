@@ -60,6 +60,7 @@ model User {
   bio         String?
 
   // Student specific (Medical & Info)
+  cedula           String?        @unique
   status           StudentStatus? @default(ACTIVE)
   medicalInfo      String?
   allergies        String?

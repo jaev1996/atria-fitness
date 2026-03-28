@@ -40,6 +40,8 @@ function StudentsContent() {
     const [isDialogOpen, setIsDialogOpen] = useState(false)
     const [newStudent, setNewStudent] = useState({
         name: "",
+        cedula: "",
+        cedulaPrefix: "V",
         phone: "",
         email: "",
         medicalInfo: "",
@@ -101,7 +103,7 @@ function StudentsContent() {
         filters
     } = useFilter<StudentWithParams>({
         data: students,
-        searchKeys: ['name' as keyof StudentWithParams, 'email' as keyof StudentWithParams, 'phone' as keyof StudentWithParams],
+        searchKeys: ['name' as keyof StudentWithParams, 'email' as keyof StudentWithParams, 'phone' as keyof StudentWithParams, 'cedula' as keyof StudentWithParams],
         initialItemsPerPage: 10,
         customFilter
     });
@@ -138,8 +140,10 @@ function StudentsContent() {
 
         startTransition(async () => {
             try {
+                const combinedCedula = `${newStudent.cedulaPrefix}${newStudent.cedula}`;
                 await addStudent({
                     name: newStudent.name,
+                    cedula: combinedCedula,
                     phone: newStudent.phone,
                     email: newStudent.email,
                     medicalInfo: newStudent.medicalInfo,
@@ -154,7 +158,7 @@ function StudentsContent() {
                 toast.success("Alumna registrada correctamente")
                 setIsDialogOpen(false)
                 setNewStudent({
-                    name: "", phone: "", email: "",
+                    name: "", cedula: "", cedulaPrefix: "V", phone: "", email: "",
                     medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "",
                     sportsInfo: "", planType: "Sin Plan", disciplines: ["General"]
                 })
@@ -248,6 +252,35 @@ function StudentsContent() {
                                                 onChange={(e) => setNewStudent({ ...newStudent, name: e.target.value })}
                                                 placeholder="Ej. Ana Pérez"
                                             />
+                                        </div>
+                                        <div className="grid gap-2">
+                                            <Label htmlFor="cedula">Cédula de Identidad *</Label>
+                                            <div className="flex gap-2">
+                                                <Select 
+                                                    value={newStudent.cedulaPrefix} 
+                                                    onValueChange={(v) => setNewStudent({ ...newStudent, cedulaPrefix: v })}
+                                                >
+                                                    <SelectTrigger className="w-[70px] bg-slate-50 dark:bg-slate-900 border-brand-primary/20">
+                                                        <SelectValue placeholder="V/E" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="V">V</SelectItem>
+                                                        <SelectItem value="E">E</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                                <Input
+                                                    id="cedula"
+                                                    type="text"
+                                                    inputMode="numeric"
+                                                    value={newStudent.cedula}
+                                                    onChange={(e) => {
+                                                        const val = e.target.value.replace(/\D/g, '').substring(0, 9);
+                                                        setNewStudent({ ...newStudent, cedula: val });
+                                                    }}
+                                                    placeholder="Ej. 20123456"
+                                                    className="flex-1"
+                                                />
+                                            </div>
                                         </div>
                                         <div className="grid gap-2">
                                             <Label htmlFor="phone">Teléfono *</Label>
@@ -408,7 +441,7 @@ function StudentsContent() {
                         <div className="relative flex-1">
                             <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
                             <Input
-                                placeholder="Buscar por nombre, email o teléfono..."
+                                placeholder="Buscar por nombre, cédula, email o teléfono..."
                                 className="pl-10"
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
@@ -520,7 +553,12 @@ function StudentsContent() {
                                                         )}
                                                     </div>
                                                     <div className="flex flex-col">
-                                                        <span className="font-semibold text-slate-700 dark:text-slate-200">{student.name}</span>
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="font-semibold text-slate-700 dark:text-slate-200">{student.name}</span>
+                                                            <Badge variant="outline" className="text-[9px] h-4 px-1 text-slate-400 font-mono">
+                                                                {student.cedula}
+                                                            </Badge>
+                                                        </div>
                                                         <span className="text-xs text-slate-400">{student.email || "Sin email"}</span>
                                                     </div>
                                                 </TableCell>

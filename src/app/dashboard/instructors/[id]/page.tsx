@@ -32,6 +32,7 @@ export default async function InstructorDetailPage({ params }: PageProps) {
             instructor={{
                 id: instructor.id,
                 name: instructor.name,
+                cedula: instructor.cedula ?? "",
                 email: instructor.email ?? "",
                 phone: instructor.phone ?? "",
                 bio: instructor.bio ?? "",

@@ -1,5 +1,5 @@
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 
 export interface UseFilterOptions<T> {
@@ -7,7 +7,7 @@ export interface UseFilterOptions<T> {
     searchKeys: (keyof T)[];
     initialItemsPerPage?: number;
     // Basic filter function that receives attributes and the item
-    customFilter?: (item: T, filters: Record<string, any>) => boolean;
+    customFilter?: (item: T, filters: Record<string, string>) => boolean;
 }
 
 export function useFilter<T>({ data, searchKeys, initialItemsPerPage = 10, customFilter }: UseFilterOptions<T>) {
@@ -19,23 +19,50 @@ export function useFilter<T>({ data, searchKeys, initialItemsPerPage = 10, custo
     const [currentPage, setCurrentPage] = useState(1);
     const [itemsPerPage, setItemsPerPage] = useState(initialItemsPerPage);
 
-    // 2. Search State (Debounced locally generally, but here we can just bind to input)
-    // We will sync search to URL 'q' param
-    const searchTerm = searchParams.get('q') || '';
+    // 2. Search State (Debounced sync to URL, but instant in UI)
+    const urlTerm = searchParams.get('q') || '';
+    const [localSearchTerm, setLocalSearchTerm] = useState(urlTerm);
 
-    // 3. Filter State (Generic map of key -> value)
-    // We will assume any other param in searchParams is a filter if logic requires
+    // 3. Debounce Effect: Sync local state to URL 'q' param
+    const lastPushedTerm = useRef(urlTerm);
+
+    useEffect(() => {
+        if (localSearchTerm === urlTerm) {
+            lastPushedTerm.current = localSearchTerm;
+            return;
+        }
+
+        const timer = setTimeout(() => {
+            const params = new URLSearchParams(searchParams.toString());
+            if (localSearchTerm) {
+                params.set('q', localSearchTerm);
+            } else {
+                params.delete('q');
+            }
+            params.set('page', '1'); // Reset to page 1 on search
+            
+            lastPushedTerm.current = localSearchTerm;
+            router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+        }, 400); // 400ms debounce
+
+        return () => clearTimeout(timer);
+    }, [localSearchTerm, urlTerm, pathname, router, searchParams]);
+
+    // 4. External Sync: If URL changes EXTERNALLY (e.g., Back button), update local state
+    useEffect(() => {
+        if (urlTerm !== lastPushedTerm.current) {
+            // We use setTimeout to avoid the "cascading renders" lint error
+            // while still keeping the local state in sync with the URL.
+            const syncTimer = setTimeout(() => {
+                setLocalSearchTerm(urlTerm);
+                lastPushedTerm.current = urlTerm;
+            }, 0);
+            return () => clearTimeout(syncTimer);
+        }
+    }, [urlTerm]);
 
     const handleSearch = (term: string) => {
-        const params = new URLSearchParams(searchParams.toString());
-        if (term) {
-            params.set('q', term);
-        } else {
-            params.delete('q');
-        }
-        params.set('page', '1'); // Reset to page 1 on search
-        setCurrentPage(1);
-        router.replace(`${pathname}?${params.toString()}`);
+        setLocalSearchTerm(term);
     };
 
     const handleFilterChange = (key: string, value: string | null) => {
@@ -59,9 +86,9 @@ export function useFilter<T>({ data, searchKeys, initialItemsPerPage = 10, custo
     const filteredData = useMemo(() => {
         let result = [...data];
 
-        // 1. Text Search
-        if (searchTerm) {
-            const lowerTerm = searchTerm.toLowerCase();
+        // 1. Text Search (Use localSearchTerm for instant UI updates)
+        if (localSearchTerm) {
+            const lowerTerm = localSearchTerm.toLowerCase();
             result = result.filter(item =>
                 searchKeys.some(key => {
                     const value = item[key];
@@ -73,7 +100,7 @@ export function useFilter<T>({ data, searchKeys, initialItemsPerPage = 10, custo
         // 2. Custom Filters (using URL params)
         if (customFilter) {
             // Convert searchParams to a plain object
-            const filters: Record<string, any> = {};
+            const filters: Record<string, string> = {};
             searchParams.forEach((value, key) => {
                 if (key !== 'q' && key !== 'page' && key !== 'limit') {
                     filters[key] = value;
@@ -86,7 +113,7 @@ export function useFilter<T>({ data, searchKeys, initialItemsPerPage = 10, custo
         }
 
         return result;
-    }, [data, searchTerm, searchParams, searchKeys, customFilter]);
+    }, [data, localSearchTerm, searchParams, searchKeys, customFilter]);
 
     // Pagination Logic
     const totalItems = filteredData.length;
@@ -113,7 +140,7 @@ export function useFilter<T>({ data, searchKeys, initialItemsPerPage = 10, custo
         setItemsPerPage,
 
         // Search & Filters
-        searchTerm,
+        searchTerm: localSearchTerm,
         setSearchTerm: handleSearch,
         setFilter: handleFilterChange,
         clearFilters,

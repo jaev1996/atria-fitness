@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Plus, Edit, Search, User, Eye, Trash2, Cross, Loader2, ShieldAlert } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { toast } from "sonner"
 import { DISCIPLINES } from "@/constants/config"
@@ -35,12 +36,14 @@ function InstructorsContent() {
 
     const [formData, setFormData] = useState<{
         name: string,
+        cedula: string,
         email: string,
         phone: string,
         bio: string,
         specialties: string[]
     }>({
         name: "",
+        cedula: "V",
         email: "",
         phone: "",
         bio: "",
@@ -89,7 +92,7 @@ function InstructorsContent() {
         filters
     } = useFilter<PrismaUser>({
         data: instructors,
-        searchKeys: ['name', 'email', 'bio'] as (keyof PrismaUser)[],
+        searchKeys: ['name', 'email', 'bio', 'cedula'] as (keyof PrismaUser)[],
         initialItemsPerPage: 10,
         customFilter
     });
@@ -123,6 +126,7 @@ function InstructorsContent() {
             setEditingId(instructor.id)
             setFormData({
                 name: instructor.name,
+                cedula: instructor.cedula || "V",
                 email: instructor.email || "",
                 phone: instructor.phone || "",
                 bio: instructor.bio || "",
@@ -132,6 +136,7 @@ function InstructorsContent() {
             setEditingId(null)
             setFormData({
                 name: "",
+                cedula: "V",
                 email: "",
                 phone: "",
                 bio: "",
@@ -145,6 +150,10 @@ function InstructorsContent() {
     const handleSave = async () => {
         if (!formData.name) {
             toast.error("El nombre es obligatorio")
+            return
+        }
+        if (!formData.cedula || formData.cedula.length < 2) {
+            toast.error("La cédula es obligatoria")
             return
         }
         if (!formData.email) {
@@ -304,7 +313,12 @@ function InstructorsContent() {
                                                     <User className="h-4 w-4" />
                                                 </div>
                                                 <div className="flex flex-col">
-                                                    <span className="font-semibold text-slate-700 dark:text-slate-200">{instructor.name}</span>
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="font-semibold text-slate-700 dark:text-slate-200">{instructor.name}</span>
+                                                        <Badge variant="outline" className="text-[10px] font-mono h-5 bg-slate-50">
+                                                            {instructor.cedula}
+                                                        </Badge>
+                                                    </div>
                                                     <span className="text-xs text-slate-400 truncate max-w-[200px]">{instructor.bio || "Sin biografía"}</span>
                                                 </div>
                                             </TableCell>
@@ -363,14 +377,48 @@ function InstructorsContent() {
                             <DialogTitle>{editingId ? "Editar Instructor" : "Nuevo Instructor"}</DialogTitle>
                         </DialogHeader>
                         <div className="grid gap-4 py-4">
-                            <div className="grid gap-2">
-                                <Label>Nombre Completo *</Label>
-                                <Input
-                                    value={formData.name}
-                                    onChange={e => setFormData({ ...formData, name: e.target.value })}
-                                    placeholder="Ej. Valentina"
-                                    disabled={isSaving}
-                                />
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="grid gap-2">
+                                    <Label>Nombre Completo *</Label>
+                                    <Input
+                                        value={formData.name}
+                                        onChange={e => setFormData({ ...formData, name: e.target.value })}
+                                        placeholder="Ej. Valentina"
+                                        disabled={isSaving}
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label>Cédula de Identidad *</Label>
+                                    <div className="flex gap-2">
+                                        <Select 
+                                            value={formData.cedula?.startsWith('E') ? 'E' : 'V'} 
+                                            onValueChange={(v) => {
+                                                const currentNum = formData.cedula?.replace(/^[VE]/, '') || "";
+                                                setFormData({ ...formData, cedula: `${v}${currentNum}` });
+                                            }}
+                                            disabled={isSaving}
+                                        >
+                                            <SelectTrigger className="w-[70px]">
+                                                <SelectValue placeholder="V/E" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                <SelectItem value="V">V</SelectItem>
+                                                <SelectItem value="E">E</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <Input 
+                                            value={formData.cedula?.replace(/^[VE]/, '') ?? ""} 
+                                            onChange={e => {
+                                                const prefix = formData.cedula?.startsWith('E') ? 'E' : 'V';
+                                                const val = e.target.value.replace(/\D/g, '').substring(0, 9);
+                                                setFormData({ ...formData, cedula: `${prefix}${val}` });
+                                            }} 
+                                            placeholder="Número"
+                                            className="flex-1"
+                                            disabled={isSaving}
+                                        />
+                                    </div>
+                                </div>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="grid gap-2">
