@@ -11,8 +11,11 @@ export async function getRoleFromPrisma() {
     const { default: prisma } = await import('@/lib/prisma')
     const dbUser = await prisma.user.findUnique({
         where: { id: user.id },
-        select: { role: true }
+        select: { role: true, roles: true }
     })
 
+    const roles = dbUser?.roles || []
+    if (roles.includes('ADMIN')) return 'admin'
+    if (roles.includes('INSTRUCTOR')) return 'instructor'
     return (dbUser?.role || 'STUDENT').toLowerCase()
 }

@@ -29,11 +29,13 @@ export async function syncAllUserMetadata() {
             const { error } = await supabaseAdmin.auth.admin.updateUserById(user.id, {
                 user_metadata: {
                     name: user.name,
-                    role: user.role.toLowerCase()
+                    role: user.role.toLowerCase(),
+                    roles: user.roles.map(r => r.toLowerCase())
                 },
                 // También lo guardamos en app_metadata para mayor seguridad (el middleware puede leerlo aquí)
                 app_metadata: {
-                    role: user.role.toLowerCase()
+                    role: user.role.toLowerCase(),
+                    roles: user.roles.map(r => r.toLowerCase())
                 }
             })
 

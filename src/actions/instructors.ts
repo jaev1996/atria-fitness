@@ -13,7 +13,7 @@ export async function getInstructors() {
     console.log("Action: getInstructors called")
     try {
         const instructors = await prisma.user.findMany({
-            where: { role: 'INSTRUCTOR' },
+            where: { roles: { has: 'INSTRUCTOR' } },
             orderBy: { name: 'asc' }
         })
         console.log(`Found ${instructors.length} instructors`)
@@ -46,10 +46,40 @@ export async function addInstructor(data: { name: string, cedula: string, email:
     })
 
     if (existing) {
-        if (existing.email === data.email) throw new Error("Ya existe un usuario registrado con este correo electrónico.")
-        if (existing.cedula === data.cedula) throw new Error(`Esta cédula ya está registrada para otro usuario (${existing.name}).`)
-        if (data.phone && existing.phone === data.phone) throw new Error(`Este número de teléfono ya está registrado con otro usuario (${existing.name}).`)
-        if (existing.name.toLowerCase() === data.name.toLowerCase() && existing.role === 'INSTRUCTOR') throw new Error(`Ya existe un instructor registrado con el nombre "${data.name}".`)
+        const isInstructor = existing.roles.includes('INSTRUCTOR')
+        if (isInstructor) {
+            if (existing.email === data.email) throw new Error("Ya existe un instructor registrado con este correo electrónico.")
+            if (existing.cedula === data.cedula) throw new Error(`Esta cédula ya está registrada para otro instructor (${existing.name}).`)
+            if (data.phone && existing.phone === data.phone) throw new Error(`Este número de teléfono ya está registrado con otro instructor (${existing.name}).`)
+            if (existing.name.toLowerCase() === data.name.toLowerCase()) throw new Error(`Ya existe un instructor registrado con el nombre "${data.name}".`)
+        }
+
+        // Si es alumno, habilitar perfil de instructor
+        // NOTA: El usuario indicó que alumnos -> instructores no es prioridad, 
+        // pero para evitar errores de base de datos lo manejamos de forma segura.
+        const updated = await prisma.user.update({
+            where: { id: existing.id },
+            data: {
+                roles: { set: [...existing.roles, 'INSTRUCTOR'] },
+                specialties: data.specialties,
+                bio: data.bio
+            }
+        })
+
+        // Sincronizar metadatos
+        await supabaseAdmin.auth.admin.updateUserById(existing.id, {
+            user_metadata: {
+                role: 'INSTRUCTOR', // Preferimos instructor como rol principal si lo es
+                roles: updated.roles.map(r => r.toLowerCase())
+            },
+            app_metadata: {
+                role: 'instructor',
+                roles: updated.roles.map(r => r.toLowerCase())
+            }
+        })
+
+        revalidatePath('/dashboard/instructors')
+        return updated
     }
 
     // 1. Create User in Supabase Auth via Admin API
@@ -79,7 +109,8 @@ export async function addInstructor(data: { name: string, cedula: string, email:
                 phone: data.phone,
                 specialties: data.specialties,
                 bio: data.bio,
-                role: 'INSTRUCTOR'
+                role: 'INSTRUCTOR',
+                roles: ['INSTRUCTOR']
             }
         })
         revalidatePath('/dashboard/instructors')
@@ -128,16 +159,22 @@ export async function updateInstructor(id: string, data: Prisma.UserUpdateInput)
     try {
         const updated = await prisma.user.update({
             where: { id },
-            data
+            data: {
+                ...data,
+                // Sincronizar roles si se cambia el role singular
+                roles: data.role ? { set: [data.role as any] } : undefined
+            }
         })
         // Sync with Supabase Auth
         await supabaseAdmin.auth.admin.updateUserById(id, {
             user_metadata: {
                 name: typeof updated.name === 'string' ? updated.name : undefined,
-                role: updated.role.toLowerCase()
+                role: updated.role.toLowerCase(),
+                roles: updated.roles.map(r => r.toLowerCase())
             },
             app_metadata: {
-                role: updated.role.toLowerCase()
+                role: updated.role.toLowerCase(),
+                roles: updated.roles.map(r => r.toLowerCase())
             }
         })
 
@@ -239,7 +276,7 @@ export async function addInstructorPayment(data: {
 }
 
 export async function deleteInstructorPayment(paymentId: string) {
-    await prisma.$transaction(async (tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0]) => {
+    await prisma.$transaction(async (tx: any) => {
         // Free the classes linked to this payment
         await tx.classSession.updateMany({
             where: { paymentId },
@@ -249,4 +286,41 @@ export async function deleteInstructorPayment(paymentId: string) {
     })
     revalidatePath('/dashboard/instructors')
     revalidatePath('/dashboard/profile')
+}
+
+export async function enableStudentProfile(instructorId: string) {
+    await ensureRole(['admin'])
+    
+    const instructor = await prisma.user.findUnique({
+        where: { id: instructorId }
+    })
+
+    if (!instructor) throw new Error("Instructor no encontrado")
+    
+    if (instructor.roles.includes('STUDENT')) {
+        return instructor
+    }
+
+    const updated = await prisma.user.update({
+        where: { id: instructorId },
+        data: {
+            roles: { set: [...instructor.roles, 'STUDENT'] }
+        }
+    })
+
+    // Sincronizar metadatos
+    await supabaseAdmin.auth.admin.updateUserById(instructorId, {
+        user_metadata: {
+            roles: updated.roles.map(r => r.toLowerCase())
+        },
+        app_metadata: {
+            roles: updated.roles.map(r => r.toLowerCase())
+        }
+    })
+
+    revalidatePath('/dashboard/instructors')
+    revalidatePath(`/dashboard/instructors/${instructorId}`)
+    revalidatePath('/dashboard/students')
+    
+    return updated
 }

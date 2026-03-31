@@ -3,7 +3,7 @@
 import { useState, useMemo, useTransition, useSyncExternalStore } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { addInstructorPayment, deleteInstructorPayment, updateInstructor } from "@/actions/instructors"
+import { addInstructorPayment, deleteInstructorPayment, updateInstructor, enableStudentProfile } from "@/actions/instructors"
 import { ROOMS, DISCIPLINES, Tier } from "@/constants/config"
 import { Sidebar } from "@/components/shared/sidebar"
 import { MobileNav } from "@/components/shared/mobile-nav"
@@ -67,6 +67,7 @@ interface InstructorDetailClientProps {
         phone: string
         bio: string
         specialties: string[]
+        roles: string[]
     }
     classes: ClassWithAttendees[]
     payments: PaymentWithClasses[]
@@ -253,6 +254,20 @@ export function InstructorDetailClient({
         }))
     }
 
+    const handleEnableStudentProfile = () => {
+        if (!confirm("¿Deseas habilitar el perfil de alumna para esta instructora? Podrás asignarle planes y registrar sus asistencias.")) return
+
+        startTransition(async () => {
+            try {
+                await enableStudentProfile(instructor.id)
+                toast.success("Perfil de alumna habilitado correctamente")
+                router.refresh()
+            } catch (err: unknown) {
+                toast.error(err instanceof Error ? err.message : "Error al habilitar perfil")
+            }
+        })
+    }
+
     return (
         <div className="flex flex-col md:flex-row h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
             <Sidebar />
@@ -375,6 +390,11 @@ export function InstructorDetailClient({
                                             <Badge variant="outline" className="text-[10px] font-mono h-5 bg-slate-50">
                                                 {instructor.cedula}
                                             </Badge>
+                                            {instructor.roles.includes('STUDENT') && (
+                                                <Badge variant="secondary" className="bg-green-100 text-green-700 hover:bg-green-100 border-green-200">
+                                                    Perfil de Alumna Activo
+                                                </Badge>
+                                            )}
                                         </div>
                                         <div className="flex flex-wrap gap-2 mt-2">
                                             {instructor.specialties.map(s => (
@@ -383,6 +403,42 @@ export function InstructorDetailClient({
                                         </div>
                                     </div>
                                 </div>
+
+                                {!instructor.roles.includes('STUDENT') && (
+                                    <div className="bg-brand-primary/5 border border-brand-primary/20 rounded-xl p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-10 w-10 rounded-full bg-brand-primary/10 flex items-center justify-center">
+                                                <Sparkles className="h-5 w-5 text-brand-primary" />
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-slate-800 dark:text-slate-100">Habilitar Modo Alumna</p>
+                                                <p className="text-sm text-slate-500">Permite que esta instructora también pueda inscribirse en clases y tener planes.</p>
+                                            </div>
+                                        </div>
+                                        <Button onClick={handleEnableStudentProfile} disabled={isPending} className="bg-brand-primary text-white hover:bg-brand-primary/90">
+                                            {isPending ? "Habilitando..." : "Activar Perfil de Alumna"}
+                                        </Button>
+                                    </div>
+                                )}
+
+                                {instructor.roles.includes('STUDENT') && (
+                                    <div className="bg-green-50 border border-green-200 rounded-xl p-4 flex items-center justify-between gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                                                <Eye className="h-5 w-5 text-green-600" />
+                                            </div>
+                                            <div>
+                                                <p className="font-semibold text-green-800">Perfil de Alumna Activo</p>
+                                                <p className="text-sm text-green-600">Esta instructora ya puede ser gestionada como alumna.</p>
+                                            </div>
+                                        </div>
+                                        <Link href={`/dashboard/students/${instructor.id}`}>
+                                            <Button variant="outline" className="border-green-200 text-green-700 hover:bg-green-100">
+                                                Ver Ficha de Alumna
+                                            </Button>
+                                        </Link>
+                                    </div>
+                                )}
                                 <Separator />
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     <div className="space-y-1">

@@ -52,6 +52,7 @@ model User {
   name      String
   phone     String?
   role      UserRole @default(STUDENT)
+  roles     UserRole[] @default([STUDENT])
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

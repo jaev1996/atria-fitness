@@ -12,7 +12,7 @@ export async function getStudents() {
     const user = await ensureRole(['admin', 'instructor'])
     const role = (user.app_metadata?.role || user.user_metadata?.role || '').toLowerCase()
 
-    const where: Prisma.UserWhereInput = { role: 'STUDENT' }
+    const where: Prisma.UserWhereInput = { roles: { has: 'STUDENT' } }
 
     // Si es instructor, solo ver alumnas que asistan a sus clases
     if (role === 'instructor') {
@@ -40,7 +40,7 @@ export async function getStudentsSummary() {
     const user = await ensureRole(['admin', 'instructor'])
     const role = (user.app_metadata?.role || user.user_metadata?.role || '').toLowerCase()
 
-    const where: Prisma.UserWhereInput = { role: 'STUDENT' }
+    const where: Prisma.UserWhereInput = { roles: { has: 'STUDENT' } }
 
     if (role === 'instructor') {
         where.attendances = { some: { class: { instructorId: user.id } } }
@@ -118,27 +118,53 @@ export async function addStudent(data: {
     const { planType, discipline, disciplines, ...studentData } = parsed
 
     // 1. Explicit duplicate checks
-    const existingStudent = await prisma.user.findFirst({
+    const existingUser = await prisma.user.findFirst({
         where: {
             OR: [
                 { phone: data.phone },
                 { name: { equals: data.name, mode: 'insensitive' as Prisma.QueryMode } },
                 { cedula: data.cedula }
-            ],
-            role: 'STUDENT'
+            ]
         }
     })
 
-    if (existingStudent) {
-        if (existingStudent.cedula === data.cedula) {
-            throw new Error(`Esta cédula ya está registrada para otra alumna (${existingStudent.name}).`)
+    if (existingUser) {
+        const isStudent = existingUser.roles.includes('STUDENT')
+        
+        if (isStudent) {
+            if (existingUser.cedula === data.cedula) {
+                throw new Error(`Esta cédula ya está registrada para otra alumna (${existingUser.name}).`)
+            }
+            if (existingUser.phone === data.phone) {
+                throw new Error(`Ese número de teléfono ya está registrado con otra alumna (${existingUser.name}).`)
+            }
+            if (existingUser.name.toLowerCase() === data.name.toLowerCase()) {
+                throw new Error(`Ya existe una alumna registrada con el nombre "${data.name}".`)
+            }
         }
-        if (existingStudent.phone === data.phone) {
-            throw new Error(`Ese número de teléfono ya está registrado con otra alumna (${existingStudent.name}).`)
+
+        // Si es instructor, habilitar perfil de alumna
+        if (existingUser.roles.includes('INSTRUCTOR')) {
+            const updated = await prisma.user.update({
+                where: { id: existingUser.id },
+                data: {
+                    roles: { set: [...existingUser.roles, 'STUDENT'] },
+                    // Sincronizamos otros campos opcionales si vienen en el registro
+                    medicalInfo: data.medicalInfo || existingUser.medicalInfo,
+                    allergies: data.allergies || existingUser.allergies,
+                    injuries: data.injuries || existingUser.injuries,
+                    conditions: data.conditions || existingUser.conditions,
+                    emergencyContact: data.emergencyContact || existingUser.emergencyContact,
+                    sportsInfo: data.sportsInfo || existingUser.sportsInfo,
+                }
+            })
+            
+            // Revalidar y retornar
+            revalidatePath('/dashboard/students')
+            return updated
         }
-        if (existingStudent.name.toLowerCase() === data.name.toLowerCase()) {
-            throw new Error(`Ya existe una alumna registrada con el nombre "${data.name}".`)
-        }
+
+        throw new Error(`Ya existe un usuario registrado con estos datos (${existingUser.name}).`)
     }
 
     // Generate placeholder email if not provided
@@ -169,6 +195,7 @@ export async function addStudent(data: {
                 id: authUser?.user?.id || `temp_${Date.now()}`,
                 email: email,
                 role: 'STUDENT',
+                roles: ['STUDENT'],
                 status: data.status || 'ACTIVE',
             }
         })
@@ -225,46 +252,52 @@ export async function updateStudent(id: string, data: Partial<User>) {
     await ensureRole(['admin'])
 
     // Check if new phone/name belongs to another student
-    if (data.phone || data.name) {
-        const existingStudent = await prisma.user.findFirst({
+    if (data.phone || data.name || data.cedula) {
+        const existingUser = await prisma.user.findFirst({
             where: {
                 OR: [
                     data.phone ? { phone: data.phone } : {},
                     data.name ? { name: { equals: data.name, mode: 'insensitive' as Prisma.QueryMode } } : {},
                     data.cedula ? { cedula: data.cedula } : {}
                 ].filter(condition => Object.keys(condition).length > 0),
-                id: { not: id },
-                role: 'STUDENT'
+                id: { not: id }
             }
         })
 
-        if (existingStudent) {
-            if (data.cedula && existingStudent.cedula === data.cedula) {
-                throw new Error(`Esta cédula ya está registrada para otra alumna (${existingStudent.name}).`)
+        if (existingUser) {
+            if (data.cedula && existingUser.cedula === data.cedula) {
+                throw new Error(`Esta cédula ya está registrada para otro usuario (${existingUser.name}).`)
             }
-            if (data.phone && existingStudent.phone === data.phone) {
-                throw new Error(`Este número de teléfono ya está registrado con otra alumna (${existingStudent.name}).`)
+            if (data.phone && existingUser.phone === data.phone) {
+                throw new Error(`Este número de teléfono ya está registrado con otro usuario (${existingUser.name}).`)
             }
-            if (data.name && existingStudent.name?.toLowerCase() === data.name.toLowerCase()) {
-                throw new Error(`Ya existe otra alumna registrada con el nombre "${data.name}".`)
+            if (data.name && existingUser.name?.toLowerCase() === data.name.toLowerCase()) {
+                throw new Error(`Ya existe otro usuario registrado con el nombre "${data.name}".`)
             }
         }
     }
 
     const updated = await prisma.user.update({
         where: { id },
-        data
+        data: {
+            ...data,
+            // Si por alguna razón se cambia el role singular, sincronizamos el array roles
+            // (esto es poco común en updateStudent pero por seguridad)
+            roles: data.role ? { set: [data.role] } : undefined
+        }
     })
 
     // Sync to Supabase Auth metadata for performance (avoiding Prisma lookups)
     await supabaseAdmin.auth.admin.updateUserById(id, {
         email: data.email,
         user_metadata: {
-            name: data.name,
-            role: (data.role || 'STUDENT').toString().toLowerCase()
+            name: data.name || updated.name,
+            role: (data.role || updated.role).toLowerCase(),
+            roles: updated.roles.map(r => r.toLowerCase())
         },
         app_metadata: {
-            role: (data.role || 'STUDENT').toString().toLowerCase()
+            role: (data.role || updated.role).toLowerCase(),
+            roles: updated.roles.map(r => r.toLowerCase())
         }
     })
 

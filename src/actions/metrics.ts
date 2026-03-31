@@ -47,7 +47,7 @@ export async function getDashboardMetrics(instructorId?: string) {
     // Total students (only for admin)
     const totalStudents = instructorId
         ? null
-        : await prisma.user.count({ where: { role: "STUDENT", status: "ACTIVE" } })
+        : await prisma.user.count({ where: { roles: { has: "STUDENT" }, status: "ACTIVE" } })
 
     // Upcoming (next 5)
     const upcoming = await prisma.classSession.findMany({

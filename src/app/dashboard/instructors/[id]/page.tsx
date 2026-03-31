@@ -15,7 +15,9 @@ export default async function InstructorDetailPage({ params }: PageProps) {
 
     // Fetch in parallel
     const [instructor, classes, payments, settings] = await Promise.all([
-        prisma.user.findUnique({ where: { id, role: 'INSTRUCTOR' } }),
+        prisma.user.findFirst({ 
+            where: { id, roles: { has: 'INSTRUCTOR' } } 
+        }),
         prisma.classSession.findMany({
             where: { instructorId: id },
             include: { attendees: true },
@@ -37,6 +39,7 @@ export default async function InstructorDetailPage({ params }: PageProps) {
                 phone: instructor.phone ?? "",
                 bio: instructor.bio ?? "",
                 specialties: instructor.specialties ?? [],
+                roles: instructor.roles || [],
             }}
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             classes={classes as any[]}
