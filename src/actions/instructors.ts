@@ -4,10 +4,11 @@
 import prisma from "@/lib/prisma"
 import { revalidatePath } from "next/cache"
 import { supabaseAdmin } from "@/lib/supabase-admin"
-import { Prisma } from "@prisma/client"
+import { Prisma, UserRole } from "@prisma/client"
 import { ensureRole } from "@/lib/auth-utils"
 import { AddInstructorSchema, AddInstructorPaymentSchema } from "@/lib/schemas"
 import { formatZodError } from "@/lib/utils"
+import { handleActionError } from "@/lib/error-utils"
 
 export async function getInstructors() {
     console.log("Action: getInstructors called")
@@ -116,11 +117,7 @@ export async function addInstructor(data: { name: string, cedula: string, email:
         revalidatePath('/dashboard/instructors')
         return instructor
     } catch (error) {
-        console.error("Prisma error adding instructor:", error)
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-            throw new Error("Ya existe un instructor con este correo electrónico o teléfono.")
-        }
-        throw new Error("Error inesperado al guardar los datos del instructor.")
+        handleActionError(error, "Error inesperado al guardar los datos del instructor.")
     }
 }
 
@@ -162,7 +159,7 @@ export async function updateInstructor(id: string, data: Prisma.UserUpdateInput)
             data: {
                 ...data,
                 // Sincronizar roles si se cambia el role singular
-                roles: data.role ? { set: [data.role as any] } : undefined
+                roles: data.role ? { set: [data.role as UserRole] } : undefined
             }
         })
         // Sync with Supabase Auth
@@ -182,18 +179,40 @@ export async function updateInstructor(id: string, data: Prisma.UserUpdateInput)
         revalidatePath(`/dashboard/instructors/${id}`)
         return updated
     } catch (error) {
-        console.error("Prisma error updating instructor:", error)
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-            throw new Error("Ya existe otro instructor con los mismos datos (email/teléfono).")
-        }
-        throw new Error("Error al actualizar los datos del instructor.")
+        handleActionError(error, "No se pudieron actualizar los datos del instructor.")
     }
 }
 
 export async function deleteInstructor(id: string) {
     await ensureRole(['admin'])
-    await prisma.user.delete({ where: { id } })
-    revalidatePath('/dashboard/instructors')
+    try {
+        // Validation: Prevent deletion of instructors with historical data
+        const [classes, payments] = await Promise.all([
+            prisma.classSession.count({ where: { instructorId: id } }),
+            prisma.instructorPayment.count({ where: { instructorId: id } }),
+        ])
+
+        if (classes > 0 || payments > 0) {
+            throw new Error(
+                "No se puede eliminar el instructor porque tiene clases dictadas o pagos registrados. " +
+                "Para preservar la integridad de los datos, considera mantener su perfil sin eliminarlo o contacta a soporte si es un error."
+            )
+        }
+
+        // 1. Delete from Supabase Auth
+        try {
+            await supabaseAdmin.auth.admin.deleteUser(id)
+        } catch (e) {
+            console.error("Error deleting from auth (continuing with DB deletion):", e)
+        }
+
+        // 2. Delete from Prisma
+        await prisma.user.delete({ where: { id } })
+
+        revalidatePath('/dashboard/instructors')
+    } catch (error) {
+        handleActionError(error, "No se pudo eliminar el instructor de la base de datos.")
+    }
 }
 
 // INSTRUCTOR PAYMENTS ACTIONS
@@ -245,47 +264,54 @@ export async function addInstructorPayment(data: {
     }
     // ────────────────────────────────────────────────────────────────────────
 
-    // Create payment and link classes in a transaction
-    const payment = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-        const p = await tx.instructorPayment.create({
-            data: {
-                instructorId: data.instructorId,
-                amount: data.amount,
-                startDate: new Date(data.startDate),
-                endDate: new Date(data.endDate),
-                notes: data.notes,
-            }
+    try {
+        const result = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            const p = await tx.instructorPayment.create({
+                data: {
+                    instructorId: data.instructorId,
+                    amount: data.amount,
+                    startDate: new Date(data.startDate),
+                    endDate: new Date(data.endDate),
+                    notes: data.notes,
+                }
+            })
+
+            // Update classes to link them to this payment
+            await tx.classSession.updateMany({
+                where: {
+                    id: { in: data.classIds }
+                },
+                data: {
+                    paymentId: p.id
+                }
+            })
+
+            return p
         })
 
-        // Update classes to link them to this payment
-        await tx.classSession.updateMany({
-            where: {
-                id: { in: data.classIds }
-            },
-            data: {
-                paymentId: p.id
-            }
-        })
-
-        return p
-    })
-
-    revalidatePath('/dashboard/profile')
-    revalidatePath(`/dashboard/instructors/${data.instructorId}`)
-    return payment
+        revalidatePath('/dashboard/profile')
+        revalidatePath(`/dashboard/instructors/${data.instructorId}`)
+        return result
+    } catch (error) {
+        handleActionError(error, "No se pudo registrar el pago al instructor.")
+    }
 }
 
 export async function deleteInstructorPayment(paymentId: string) {
-    await prisma.$transaction(async (tx: any) => {
-        // Free the classes linked to this payment
-        await tx.classSession.updateMany({
-            where: { paymentId },
-            data: { paymentId: null }
+    try {
+        await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+            // Free the classes linked to this payment
+            await tx.classSession.updateMany({
+                where: { paymentId },
+                data: { paymentId: null }
+            })
+            await tx.instructorPayment.delete({ where: { id: paymentId } })
         })
-        await tx.instructorPayment.delete({ where: { id: paymentId } })
-    })
-    revalidatePath('/dashboard/instructors')
-    revalidatePath('/dashboard/profile')
+        revalidatePath('/dashboard/instructors')
+        revalidatePath('/dashboard/profile')
+    } catch (error) {
+        handleActionError(error, "No se pudo eliminar el pago del instructor.")
+    }
 }
 
 export async function enableStudentProfile(instructorId: string) {
@@ -301,26 +327,30 @@ export async function enableStudentProfile(instructorId: string) {
         return instructor
     }
 
-    const updated = await prisma.user.update({
-        where: { id: instructorId },
-        data: {
-            roles: { set: [...instructor.roles, 'STUDENT'] }
-        }
-    })
+    try {
+        const updated = await prisma.user.update({
+            where: { id: instructorId },
+            data: {
+                roles: { set: [...instructor.roles, 'STUDENT'] }
+            }
+        })
 
-    // Sincronizar metadatos
-    await supabaseAdmin.auth.admin.updateUserById(instructorId, {
-        user_metadata: {
-            roles: updated.roles.map(r => r.toLowerCase())
-        },
-        app_metadata: {
-            roles: updated.roles.map(r => r.toLowerCase())
-        }
-    })
+        // Sincronizar metadatos
+        await supabaseAdmin.auth.admin.updateUserById(instructorId, {
+            user_metadata: {
+                roles: updated.roles.map(r => r.toLowerCase())
+            },
+            app_metadata: {
+                roles: updated.roles.map(r => r.toLowerCase())
+            }
+        })
 
-    revalidatePath('/dashboard/instructors')
-    revalidatePath(`/dashboard/instructors/${instructorId}`)
-    revalidatePath('/dashboard/students')
-    
-    return updated
+        revalidatePath('/dashboard/instructors')
+        revalidatePath(`/dashboard/instructors/${instructorId}`)
+        revalidatePath('/dashboard/students')
+        
+        return updated
+    } catch (error) {
+        handleActionError(error, "No se pudo habilitar el perfil de alumna para este instructor.")
+    }
 }

@@ -180,8 +180,8 @@ function StudentsContent() {
                     toast.success("Alumna eliminada")
                     const refreshed = await getStudents()
                     setStudents(refreshed as StudentWithParams[])
-                } catch {
-                    toast.error("Error al eliminar alumna")
+                } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Error al eliminar alumna")
                 }
             })
         }

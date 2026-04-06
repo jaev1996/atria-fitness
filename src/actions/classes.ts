@@ -6,6 +6,7 @@ import { ClassSession, Prisma } from "@prisma/client"
 import { ensureRole } from "@/lib/auth-utils"
 import { AddClassSchema, EnrollStudentSchema, RemoveAttendeeSchema } from "@/lib/schemas"
 import { formatZodError } from "@/lib/utils"
+import { handleActionError } from "@/lib/error-utils"
 
 export async function getClasses(startDateStr?: string, endDateStr?: string, instructorId?: string) {
     const where: Prisma.ClassSessionWhereInput = {}
@@ -101,8 +102,7 @@ export async function addClass(data: {
         revalidatePath('/dashboard/calendar')
         return newClass
     } catch (error) {
-        console.error("Prisma error adding class:", error)
-        throw new Error("Ocurrió un error inesperado al crear la clase. Verifica los datos e intenta de nuevo.")
+        handleActionError(error, "No se pudo crear la clase. Verifica los datos e intenta de nuevo.")
     }
 }
 
@@ -176,11 +176,7 @@ export async function updateClass(id: string, data: Partial<ClassSession>) {
         revalidatePath('/dashboard/calendar')
         return updated
     } catch (error) {
-        console.error("Prisma error updating class:", error)
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
-            throw new Error("Ya existe una clase con esta configuración única (posible duplicado técnico).")
-        }
-        throw new Error("Error al actualizar los datos de la clase.")
+        handleActionError(error, "No se pudieron actualizar los datos de la clase.")
     }
 }
 
@@ -240,8 +236,12 @@ async function handleClassCompletion(classId: string) {
 
 export async function deleteClass(id: string) {
     await ensureRole(['admin'])
-    await prisma.classSession.delete({ where: { id } })
-    revalidatePath('/dashboard/calendar')
+    try {
+        await prisma.classSession.delete({ where: { id } })
+        revalidatePath('/dashboard/calendar')
+    } catch (error) {
+        handleActionError(error, "No se pudo eliminar la clase. Verifica si tiene asistencias o planes asociados.")
+    }
 }
 
 // Enrollment
@@ -305,19 +305,31 @@ export async function enrollStudent(classId: string, studentId: string, type: 'S
             where: { id: studentId },
             include: {
                 plans: {
-                    where: { isActive: true, credits: { gt: 0 } }
+                    where: { isActive: true }
                 }
             }
         })
+        
         if (!student) throw new Error("Alumna no encontrada")
+        
+        // 1. Check if ANY active plan exists
+        if (student.plans.length === 0) {
+            throw new Error("La alumna no tiene un plan activo. Registra un nuevo plan para poder inscribirla.")
+        }
 
-        const hasValidPlan = student.plans.some(p =>
+        // 2. Filter plans that cover this discipline
+        const matchingPlans = student.plans.filter(p =>
             p.disciplines.includes(classData.type) || p.disciplines.includes('General')
         )
-        if (!hasValidPlan) {
-            throw new Error(
-                `La alumna no tiene un plan activo con créditos disponibles para "${classData.type}". Usa la inscripción de Cortesía si corresponde.`
-            )
+
+        if (matchingPlans.length === 0) {
+            throw new Error(`El plan actual de la alumna no cubre la disciplina "${classData.type}".`)
+        }
+
+        // 3. Check credits in any of the matching plans
+        const hasCredits = matchingPlans.some(p => p.credits > 0)
+        if (!hasCredits) {
+            throw new Error(`La alumna se ha quedado sin créditos para la disciplina "${classData.type}". Renueva su plan para continuar.`)
         }
     }
     // ────────────────────────────────────────────────────────────────────────
@@ -335,11 +347,7 @@ export async function enrollStudent(classId: string, studentId: string, type: 'S
         revalidatePath('/dashboard/calendar')
         return enrollment
     } catch (err) {
-        // Catch DB-level unique constraint violation (last resort)
-        if (err instanceof Error && 'code' in err && (err as { code: string }).code === 'P2002') {
-            throw new Error("La alumna ya está inscrita en esta clase")
-        }
-        throw err
+        handleActionError(err, "No se pudo inscribir a la alumna en la clase.")
     }
 }
 
@@ -357,11 +365,15 @@ export async function removeAttendee(classId: string, studentId: string) {
     if (role === 'instructor' && classData.instructorId !== user.id) {
         throw new Error("No puedes remover alumnos de clases de otros instructores")
     }
-    await prisma.attendee.deleteMany({
-        where: {
-            classId,
-            studentId
-        }
-    })
-    revalidatePath('/dashboard/calendar')
+    try {
+        await prisma.attendee.deleteMany({
+            where: {
+                classId,
+                studentId
+            }
+        })
+        revalidatePath('/dashboard/calendar')
+    } catch (error) {
+        handleActionError(error, "No se pudo remover a la alumna de la clase.")
+    }
 }

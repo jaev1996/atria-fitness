@@ -175,8 +175,8 @@ export function CalendarClient({
                 role === 'instructor' ? userId || undefined : undefined
             )
             setClasses(fetchedClasses as ClassWithDetails[])
-        } catch {
-            toast.error("Error al cargar periodo")
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Error al cargar periodo")
         } finally {
             setIsRefreshing(false)
         }
@@ -424,8 +424,8 @@ export function CalendarClient({
                     setIsDialogOpen(false)
                     toast.success("Clase eliminada")
                     router.refresh()
-                } catch {
-                    toast.error("Error al eliminar clase")
+                } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Error al eliminar clase")
                 }
             })
         }
@@ -492,8 +492,8 @@ export function CalendarClient({
                         ? { ...c, attendees: c.attendees.filter(a => a.studentId !== studentId) }
                         : c
                 ))
-            } catch {
-                toast.error("Error al remover alumna")
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Error al remover alumna")
             }
         })
     }

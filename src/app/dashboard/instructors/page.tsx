@@ -54,8 +54,8 @@ function InstructorsContent() {
         try {
             const data = await getInstructors()
             setInstructors(data as PrismaUser[])
-        } catch {
-            toast.error("Error al cargar instructores")
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : "Error al cargar instructores")
         } finally {
             setIsLoading(false)
         }
@@ -188,8 +188,8 @@ function InstructorsContent() {
                 await submit(() => deleteInstructor(id))
                 toast.success("Instructor eliminado")
                 loadInstructors()
-            } catch {
-                toast.error("Error al eliminar")
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Error al eliminar")
             }
         }
     }

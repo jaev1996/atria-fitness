@@ -147,8 +147,8 @@ export default function StudentDetailsPage() {
                 toast.success("Perfil actualizado")
                 setIsProfileDialogOpen(false)
                 loadStudent()
-            } catch {
-                toast.error("Error al actualizar perfil")
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Error al actualizar perfil")
             }
         }
     }
@@ -160,8 +160,8 @@ export default function StudentDetailsPage() {
                 toast.success("Ficha médica actualizada")
                 setIsMedicalDialogOpen(false)
                 loadStudent()
-            } catch {
-                toast.error("Error al actualizar ficha médica")
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Error al actualizar ficha médica")
             }
         }
     }
@@ -184,8 +184,8 @@ export default function StudentDetailsPage() {
                 setIsHistoryDialogOpen(false)
                 setNewEntry({ activity: "", notes: "", cost: "", date: new Date().toISOString().split('T')[0] })
                 loadStudent()
-            } catch {
-                toast.error("Error al agregar historial")
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Error al agregar historial")
             }
         }
     }
@@ -197,8 +197,8 @@ export default function StudentDetailsPage() {
                     await submit(() => deleteHistoryEntry(entryId, student.id))
                     toast.success("Registro eliminado")
                     loadStudent()
-                } catch {
-                    toast.error("Error al eliminar registro")
+                } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Error al eliminar registro")
                 }
             }
         }
@@ -276,8 +276,8 @@ export default function StudentDetailsPage() {
                     await submit(() => deleteStudentPlan(planId, student.id))
                     toast.success("Plan eliminado correctamente")
                     loadStudent()
-                } catch {
-                    toast.error("Error al eliminar plan")
+                } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Error al eliminar plan")
                 }
             }
         }

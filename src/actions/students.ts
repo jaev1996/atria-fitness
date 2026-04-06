@@ -7,6 +7,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin"
 import { ensureRole } from "@/lib/auth-utils"
 import { ProcessPaymentSchema, AddHistoryEntrySchema, AddStudentSchema, RenewPlanSchema } from "@/lib/schemas"
 import { formatZodError } from "@/lib/utils"
+import { handleActionError } from "@/lib/error-utils"
 
 export async function getStudents() {
     const user = await ensureRole(['admin', 'instructor'])
@@ -200,22 +201,7 @@ export async function addStudent(data: {
             }
         })
     } catch (error) {
-        console.error("Prisma error adding student:", error)
-        if (error instanceof Prisma.PrismaClientKnownRequestError) {
-            if (error.code === 'P2002') {
-                const targets = (error.meta?.target as string[]) || []
-                if (targets.includes('email')) {
-                    throw new Error("Ya existe una alumna con este correo electrónico (o el teléfono proporcionado ya está en uso).")
-                }
-                if (targets.includes('phone')) {
-                    throw new Error("Ese número de teléfono ya está registrado.")
-                }
-                if (targets.includes('cedula')) {
-                    throw new Error("Esta cédula ya está registrada en el sistema.")
-                }
-            }
-        }
-        throw new Error("Ocurrió un error inesperado al guardar los datos de la alumna. Por favor intenta de nuevo.")
+        handleActionError(error, "No se pudieron guardar los datos de la alumna.")
     }
 
     if (planType && planType !== 'Sin Plan') {
@@ -277,61 +263,92 @@ export async function updateStudent(id: string, data: Partial<User>) {
         }
     }
 
-    const updated = await prisma.user.update({
-        where: { id },
-        data: {
-            ...data,
-            // Si por alguna razón se cambia el role singular, sincronizamos el array roles
-            // (esto es poco común en updateStudent pero por seguridad)
-            roles: data.role ? { set: [data.role] } : undefined
-        }
-    })
+    try {
+        const updated = await prisma.user.update({
+            where: { id },
+            data: {
+                ...data,
+                // Si por alguna razón se cambia el role singular, sincronizamos el array roles
+                // (esto es poco común en updateStudent pero por seguridad)
+                roles: data.role ? { set: [data.role] } : undefined
+            }
+        })
 
-    // Sync to Supabase Auth metadata for performance (avoiding Prisma lookups)
-    await supabaseAdmin.auth.admin.updateUserById(id, {
-        email: data.email,
-        user_metadata: {
-            name: data.name || updated.name,
-            role: (data.role || updated.role).toLowerCase(),
-            roles: updated.roles.map(r => r.toLowerCase())
-        },
-        app_metadata: {
-            role: (data.role || updated.role).toLowerCase(),
-            roles: updated.roles.map(r => r.toLowerCase())
-        }
-    })
+        // Sync to Supabase Auth metadata for performance (avoiding Prisma lookups)
+        await supabaseAdmin.auth.admin.updateUserById(id, {
+            email: data.email,
+            user_metadata: {
+                name: data.name || updated.name,
+                role: (data.role || updated.role).toLowerCase(),
+                roles: updated.roles.map(r => r.toLowerCase())
+            },
+            app_metadata: {
+                role: (data.role || updated.role).toLowerCase(),
+                roles: updated.roles.map(r => r.toLowerCase())
+            }
+        })
 
-    revalidatePath('/dashboard/students')
-    revalidatePath(`/dashboard/students/${id}`)
-    return updated
+        revalidatePath('/dashboard/students')
+        revalidatePath(`/dashboard/students/${id}`)
+        return updated
+    } catch (error) {
+        handleActionError(error, "No se pudieron actualizar los datos de la alumna.")
+    }
 }
 
 export async function deleteStudent(id: string) {
     await ensureRole(['admin'])
     try {
+        // Validation: Prevent deletion of students with historical data
+        const [payments, history, attendances, plans] = await Promise.all([
+            prisma.studentPayment.count({ where: { studentId: id } }),
+            prisma.studentHistory.count({ where: { studentId: id } }),
+            prisma.attendee.count({ where: { studentId: id } }),
+            prisma.studentPlan.count({ where: { studentId: id } }),
+        ])
+
+        if (payments > 0 || history > 0 || attendances > 0 || plans > 0) {
+            throw new Error(
+                "No se puede eliminar la alumna porque tiene un historial activo de pagos, asistencia o planes registrados. " +
+                "Para preservar la integridad de los reportes, te sugerimos cambiar su estado a 'Inactivo' en su perfil en lugar de eliminarla."
+            )
+        }
+
         // 1. Delete from Supabase Auth
-        await supabaseAdmin.auth.admin.deleteUser(id)
-    } catch (e) {
-        console.error("Error deleting from auth:", e)
+        try {
+            await supabaseAdmin.auth.admin.deleteUser(id)
+        } catch (e) {
+            console.error("Error deleting from auth (continuing with DB deletion):", e)
+        }
+
+        // 2. Delete from Prisma (Only if no records found above)
+        await prisma.user.delete({ where: { id } })
+
+        revalidatePath('/dashboard/students')
+    } catch (error) {
+        handleActionError(error, "No se pudo eliminar a la alumna de la base de datos.")
     }
-
-    // 2. Delete from Prisma (Cascades to plans, payments, history)
-    await prisma.user.delete({ where: { id } })
-
-    revalidatePath('/dashboard/students')
 }
 
 export async function deleteStudentPlan(planId: string, studentId: string) {
     await ensureRole(['admin'])
-    await prisma.studentPlan.delete({ where: { id: planId } })
-    revalidatePath('/dashboard/students')
-    revalidatePath(`/dashboard/students/${studentId}`)
+    try {
+        await prisma.studentPlan.delete({ where: { id: planId } })
+        revalidatePath('/dashboard/students')
+        revalidatePath(`/dashboard/students/${studentId}`)
+    } catch (error) {
+        handleActionError(error, "No se pudo eliminar el plan de la alumna.")
+    }
 }
 
 export async function deleteHistoryEntry(entryId: string, studentId: string) {
     await ensureRole(['admin'])
-    await prisma.studentHistory.delete({ where: { id: entryId } })
-    revalidatePath(`/dashboard/students/${studentId}`)
+    try {
+        await prisma.studentHistory.delete({ where: { id: entryId } })
+        revalidatePath(`/dashboard/students/${studentId}`)
+    } catch (error) {
+        handleActionError(error, "No se pudo eliminar la entrada del historial.")
+    }
 }
 
 export async function updateStudentPlan(planId: string, studentId: string, disciplines: string[]) {
@@ -345,17 +362,21 @@ export async function updateStudentPlan(planId: string, studentId: string, disci
     let legacyDiscipline = disciplines.length > 1 ? 'Múltiples' : (disciplines[0] || 'General')
     if (disciplines.includes('General')) legacyDiscipline = 'General'
 
-    const updated = await prisma.studentPlan.update({
-        where: { id: planId },
-        data: {
-            disciplines,
-            discipline: legacyDiscipline
-        }
-    })
+    try {
+        const updated = await prisma.studentPlan.update({
+            where: { id: planId },
+            data: {
+                disciplines,
+                discipline: legacyDiscipline
+            }
+        })
 
-    revalidatePath('/dashboard/students')
-    revalidatePath(`/dashboard/students/${studentId}`)
-    return updated
+        revalidatePath('/dashboard/students')
+        revalidatePath(`/dashboard/students/${studentId}`)
+        return updated
+    } catch (error) {
+        handleActionError(error, "No se pudo actualizar el plan de la alumna.")
+    }
 }
 
 // Student Payments / History
@@ -399,50 +420,55 @@ export async function processPayment(data: {
         throw new Error(`La alumna ya tiene un plan activo (${existingActivePlan.originalName}). Utiliza la opción de "Renovar Plan" si deseas agregar créditos.`)
     }
 
-    return await prisma.$transaction(async (tx) => {
-        // Enforce single active plan: deactivate ALL existing plans for this student
-        await tx.studentPlan.updateMany({
-            where: { studentId: data.studentId, isActive: true },
-            data: { isActive: false }
+    try {
+        const result = await prisma.$transaction(async (tx) => {
+            // Enforce single active plan: deactivate ALL existing plans for this student
+            await tx.studentPlan.updateMany({
+                where: { studentId: data.studentId, isActive: true },
+                data: { isActive: false }
+            })
+
+            const payment = await tx.studentPayment.create({
+                data: {
+                    studentId: data.studentId,
+                    amount: data.amount,
+                    method: data.method,
+                    concept: `Nuevo Plan: ${data.planName}`
+                }
+            })
+
+            const plan = await tx.studentPlan.create({
+                data: {
+                    studentId: data.studentId,
+                    discipline: data.disciplines && data.disciplines.length > 1 
+                        ? 'Múltiples' 
+                        : (data.disciplines?.[0] || data.discipline || 'General'),
+                    disciplines: data.disciplines || (data.discipline ? [data.discipline] : ['General']),
+                    credits: data.credits,
+                    originalName: data.planName,
+                    isActive: true
+                }
+            })
+
+            // Add history entry for the new plan
+            await tx.studentHistory.create({
+                data: {
+                    studentId: data.studentId,
+                    activity: `Nuevo Plan: ${data.planName}`,
+                    notes: `Créditos iniciales: ${data.credits > 900 ? 'Ilimitados' : data.credits}`,
+                    cost: data.amount
+                }
+            })
+
+            return { payment, plan }
         })
 
-        const payment = await tx.studentPayment.create({
-            data: {
-                studentId: data.studentId,
-                amount: data.amount,
-                method: data.method,
-                concept: `Nuevo Plan: ${data.planName}`
-            }
-        })
-
-        const plan = await tx.studentPlan.create({
-            data: {
-                studentId: data.studentId,
-                discipline: data.disciplines && data.disciplines.length > 1 
-                    ? 'Múltiples' 
-                    : (data.disciplines?.[0] || data.discipline || 'General'),
-                disciplines: data.disciplines || (data.discipline ? [data.discipline] : ['General']),
-                credits: data.credits,
-                originalName: data.planName,
-                isActive: true
-            }
-        })
-
-        // Add history entry for the new plan
-        await tx.studentHistory.create({
-            data: {
-                studentId: data.studentId,
-                activity: `Nuevo Plan: ${data.planName}`,
-                notes: `Créditos iniciales: ${data.credits > 900 ? 'Ilimitados' : data.credits}`,
-                cost: data.amount
-            }
-        })
-
-        return { payment, plan }
-    })
-
-    revalidatePath(`/dashboard/students/${data.studentId}`)
-    revalidatePath('/dashboard/students')
+        revalidatePath(`/dashboard/students/${data.studentId}`)
+        revalidatePath('/dashboard/students')
+        return result
+    } catch (error) {
+        handleActionError(error, "No se pudo procesar el pago del nuevo plan.")
+    }
 }
 
 export async function renewPlan(data: {
@@ -461,54 +487,59 @@ export async function renewPlan(data: {
         throw new Error(formatZodError(e))
     }
 
-    return await prisma.$transaction(async (tx) => {
-        // Find the active plan
-        const existingPlan = await tx.studentPlan.findUnique({
-            where: { id: data.planId }
-        })
+    try {
+        const updatedPlan = await prisma.$transaction(async (tx) => {
+            // Find the active plan
+            const existingPlan = await tx.studentPlan.findUnique({
+                where: { id: data.planId }
+            })
 
-        if (!existingPlan) throw new Error("No se encontró el plan a renovar.")
-        if (existingPlan.studentId !== data.studentId) throw new Error("El plan no pertenece a esta alumna.")
-        if (existingPlan.credits > 1) {
-            throw new Error(`No es necesario renovar todavía. El plan actual aún tiene ${existingPlan.credits} créditos disponibles. Solo se permite renovar con 0 o 1 crédito restante.`)
-        }
-
-        // 1. Create Payment
-        await tx.studentPayment.create({
-            data: {
-                studentId: data.studentId,
-                amount: data.amount,
-                method: data.method,
-                concept: `Renovación: ${data.planName}`
+            if (!existingPlan) throw new Error("No se encontró el plan a renovar.")
+            if (existingPlan.studentId !== data.studentId) throw new Error("El plan no pertenece a esta alumna.")
+            if (existingPlan.credits > 1) {
+                throw new Error(`No es necesario renovar todavía. El plan actual aún tiene ${existingPlan.credits} créditos disponibles. Solo se permite renovar con 0 o 1 crédito restante.`)
             }
+
+            // 1. Create Payment
+            await tx.studentPayment.create({
+                data: {
+                    studentId: data.studentId,
+                    amount: data.amount,
+                    method: data.method,
+                    concept: `Renovación: ${data.planName}`
+                }
+            })
+
+            // 2. Update existing plan (Top-up credits and reconfigure disciplines)
+            const up = await tx.studentPlan.update({
+                where: { id: data.planId },
+                data: {
+                    credits: { increment: data.credits },
+                    disciplines: data.disciplines,
+                    discipline: data.disciplines.length > 1 ? 'Múltiples' : data.disciplines[0],
+                    originalName: data.planName,
+                    isActive: true // Ensure it stays active
+                }
+            })
+
+            // 3. Create History Entry
+            await tx.studentHistory.create({
+                data: {
+                    studentId: data.studentId,
+                    activity: `Renovación: ${data.planName}`,
+                    notes: `+${data.credits} créditos agregados. Disciplinas: ${data.disciplines.join(", ")}`,
+                    cost: data.amount
+                }
+            })
+
+            return up
         })
 
-        // 2. Update existing plan (Top-up credits and reconfigure disciplines)
-        const updatedPlan = await tx.studentPlan.update({
-            where: { id: data.planId },
-            data: {
-                credits: { increment: data.credits },
-                disciplines: data.disciplines,
-                discipline: data.disciplines.length > 1 ? 'Múltiples' : data.disciplines[0],
-                originalName: data.planName,
-                isActive: true // Ensure it stays active
-            }
-        })
-
-        // 3. Create History Entry
-        await tx.studentHistory.create({
-            data: {
-                studentId: data.studentId,
-                activity: `Renovación: ${data.planName}`,
-                notes: `+${data.credits} créditos agregados. Disciplinas: ${data.disciplines.join(", ")}`,
-                cost: data.amount
-            }
-        })
-
+        revalidatePath(`/dashboard/students/${data.studentId}`)
         return updatedPlan
-    })
-
-    revalidatePath(`/dashboard/students/${data.studentId}`)
+    } catch (error) {
+        handleActionError(error, "No se pudo renovar el plan.")
+    }
 }
 
 export async function addHistoryEntry(
@@ -521,15 +552,19 @@ export async function addHistoryEntry(
     } catch (e) {
         throw new Error(formatZodError(e))
     }
-    const entry = await prisma.studentHistory.create({
-        data: {
-            studentId,
-            activity: data.activity,
-            notes: data.notes,
-            cost: data.cost || 0,
-            classDate: data.classDate ? new Date(`${data.classDate}T00:00:00.000Z`) : null
-        }
-    })
-    revalidatePath(`/dashboard/students/${studentId}`)
-    return entry
+    try {
+        const entry = await prisma.studentHistory.create({
+            data: {
+                studentId,
+                activity: data.activity,
+                notes: data.notes,
+                cost: data.cost || 0,
+                classDate: data.classDate ? new Date(`${data.classDate}T00:00:00.000Z`) : null
+            }
+        })
+        revalidatePath(`/dashboard/students/${studentId}`)
+        return entry
+    } catch (error) {
+        handleActionError(error, "No se pudo agregar la entrada al historial.")
+    }
 }
