@@ -211,7 +211,7 @@ async function handleClassCompletion(classId: string) {
                 prisma.studentPlan.update({
                     where: { id: plan.id },
                     data: {
-                        credits: plan.originalName === 'Ilimitado' ? plan.credits : plan.credits - 1,
+                        credits: plan.credits - 1,
                         // Keep the plan active even at 0 credits so it can be renewed from the UI
                         isActive: true 
                     }

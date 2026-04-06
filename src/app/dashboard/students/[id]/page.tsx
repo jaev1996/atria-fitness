@@ -42,7 +42,7 @@ export default function StudentDetailsPage() {
     const [isPaymentDialogOpen, setIsPaymentDialogOpen] = useState(false)
     const [isRenewalDialogOpen, setIsRenewalDialogOpen] = useState(false)
     const [isEditPlanDialogOpen, setIsEditPlanDialogOpen] = useState(false)
-    const [editingPlan, setEditingPlan] = useState<{ id: string, disciplines: string[] } | null>(null)
+    const [editingPlan, setEditingPlan] = useState<{ id: string, disciplines: string[], registrationDate: string } | null>(null)
 
     // Pagination for History
     const [historyPage, setHistoryPage] = useState(1)
@@ -72,12 +72,14 @@ export default function StudentDetailsPage() {
         amount: string;
         method: PaymentMethod;
         disciplines: string[];
+        registrationDate: string;
     }>({
         planName: "Pack 8 Clases",
         credits: 8,
         amount: "",
         method: "TRANSFERENCIA",
-        disciplines: ["Pole"]
+        disciplines: ["Pole"],
+        registrationDate: new Date().toISOString().split('T')[0]
     })
 
     const [renewalForm, setRenewalForm] = useState<{
@@ -87,13 +89,15 @@ export default function StudentDetailsPage() {
         amount: string;
         method: PaymentMethod;
         disciplines: string[];
+        registrationDate: string;
     }>({
         planId: "",
         planName: "Pack 8 Clases",
         credits: 8,
         amount: "",
         method: "TRANSFERENCIA",
-        disciplines: ["Pole"]
+        disciplines: ["Pole"],
+        registrationDate: new Date().toISOString().split('T')[0]
     })
 
     // Edit Forms
@@ -219,7 +223,8 @@ export default function StudentDetailsPage() {
                     method: newPayment.method,
                     planName: newPayment.planName,
                     credits: newPayment.credits,
-                    disciplines: newPayment.disciplines
+                    disciplines: newPayment.disciplines,
+                    registrationDate: newPayment.registrationDate
                 })
                 toast.success("Pago registrado y plan agregado")
                 setIsPaymentDialogOpen(false)
@@ -228,7 +233,8 @@ export default function StudentDetailsPage() {
                     credits: 8,
                     amount: "",
                     method: "TRANSFERENCIA",
-                    disciplines: ["Pole"]
+                    disciplines: ["Pole"],
+                    registrationDate: new Date().toISOString().split('T')[0]
                 })
                 loadStudent()
             } catch (err) {
@@ -255,7 +261,8 @@ export default function StudentDetailsPage() {
                     method: renewalForm.method,
                     planName: renewalForm.planName,
                     credits: renewalForm.credits,
-                    disciplines: renewalForm.disciplines
+                    disciplines: renewalForm.disciplines,
+                    registrationDate: renewalForm.registrationDate
                 })
                 toast.success("Plan renovado correctamente")
                 setIsRenewalDialogOpen(false)
@@ -284,19 +291,15 @@ export default function StudentDetailsPage() {
     }
 
     const handleUpdatePlan = async () => {
-        if (!editingPlan || !student) return
-        if (editingPlan.disciplines.length === 0) {
-            toast.error("Debes seleccionar al menos una disciplina.")
-            return
-        }
-        try {
-            await submit(() => updateStudentPlan(editingPlan.id, student.id, editingPlan.disciplines))
-            toast.success("Plan actualizado")
-            setIsEditPlanDialogOpen(false)
-            setEditingPlan(null)
-            loadStudent()
-        } catch (err) {
-            toast.error(err instanceof Error ? err.message : "Error al actualizar plan")
+        if (student && editingPlan) {
+            try {
+                await submit(() => updateStudentPlan(editingPlan.id, student.id, editingPlan.disciplines, editingPlan.registrationDate))
+                toast.success("Plan actualizado")
+                setIsEditPlanDialogOpen(false)
+                loadStudent()
+            } catch (error) {
+                toast.error(error instanceof Error ? error.message : "Error al actualizar plan")
+            }
         }
     }
 
@@ -536,7 +539,6 @@ export default function StudentDetailsPage() {
                                                             if (v === 'Pack 4 Clases') c = 4
                                                             if (v === 'Pack 12 Clases') c = 12
                                                             if (v === 'Pack 24 Clases') c = 24
-                                                            if (v === 'Ilimitado') c = 999
                                                             if (v === 'Clase Suelta') c = 1
                                                             setNewPayment({ ...newPayment, planName: v, credits: c })
                                                         }}
@@ -549,7 +551,7 @@ export default function StudentDetailsPage() {
                                                             <SelectItem value="Pack 4 Clases">Pack 4 Clases</SelectItem>
                                                             <SelectItem value="Pack 8 Clases">Pack 8 Clases</SelectItem>
                                                             <SelectItem value="Pack 12 Clases">Pack 12 Clases</SelectItem>
-                                                            <SelectItem value="Ilimitado">Ilimitado</SelectItem>
+                                                            <SelectItem value="Pack 24 Clases">Pack 24 Clases</SelectItem>
                                                         </SelectContent>
                                                     </Select>
                                                 </div>
@@ -572,6 +574,14 @@ export default function StudentDetailsPage() {
                                                             <SelectItem value="OTRO">Otro</SelectItem>
                                                         </SelectContent>
                                                     </Select>
+                                                </div>
+                                                <div className="grid gap-2">
+                                                    <Label>Fecha de Registro / Pago</Label>
+                                                    <Input
+                                                        type="date"
+                                                        value={newPayment.registrationDate}
+                                                        onChange={(e) => setNewPayment({ ...newPayment, registrationDate: e.target.value })}
+                                                    />
                                                 </div>
                                             </div>
                                             <DialogFooter>
@@ -643,7 +653,6 @@ export default function StudentDetailsPage() {
                                                             if (v === 'Pack 4 Clases') c = 4
                                                             if (v === 'Pack 12 Clases') c = 12
                                                             if (v === 'Pack 24 Clases') c = 24
-                                                            if (v === 'Ilimitado') c = 999
                                                             if (v === 'Clase Suelta') c = 1
                                                             setRenewalForm({ ...renewalForm, planName: v, credits: c })
                                                         }}
@@ -656,7 +665,7 @@ export default function StudentDetailsPage() {
                                                             <SelectItem value="Pack 4 Clases">Pack 4 Clases</SelectItem>
                                                             <SelectItem value="Pack 8 Clases">Pack 8 Clases</SelectItem>
                                                             <SelectItem value="Pack 12 Clases">Pack 12 Clases</SelectItem>
-                                                            <SelectItem value="Ilimitado">Ilimitado</SelectItem>
+                                                            <SelectItem value="Pack 24 Clases">Pack 24 Clases</SelectItem>
                                                         </SelectContent>
                                                     </Select>
                                                 </div>
@@ -679,6 +688,14 @@ export default function StudentDetailsPage() {
                                                             <SelectItem value="OTRO">Otro</SelectItem>
                                                         </SelectContent>
                                                     </Select>
+                                                </div>
+                                                <div className="grid gap-2">
+                                                    <Label>Fecha de Registro / Pago</Label>
+                                                    <Input
+                                                        type="date"
+                                                        value={renewalForm.registrationDate}
+                                                        onChange={(e) => setRenewalForm({ ...renewalForm, registrationDate: e.target.value })}
+                                                    />
                                                 </div>
                                             </div>
                                             <DialogFooter>
@@ -741,6 +758,14 @@ export default function StudentDetailsPage() {
                                                         ))}
                                                     </div>
                                                 </div>
+                                                <div className="grid gap-2">
+                                                    <Label>Fecha de Registro</Label>
+                                                    <Input 
+                                                        type="date" 
+                                                        value={editingPlan?.registrationDate ?? ""} 
+                                                        onChange={e => setEditingPlan({ ...editingPlan!, registrationDate: e.target.value })} 
+                                                    />
+                                                </div>
                                             </div>
                                             <DialogFooter>
                                                 <Button variant="outline" onClick={() => setIsEditPlanDialogOpen(false)}>Cancelar</Button>
@@ -756,7 +781,7 @@ export default function StudentDetailsPage() {
                                 {(student.plans && student.plans.length > 0) ? (
                                     student.plans.map((plan, idx) => (
                                         <div key={idx} className="p-3 bg-white dark:bg-slate-800 rounded border shadow-sm">
-                                            <div className="flex justify-between items-center mb-2">
+                                            <div className="flex justify-between items-center mb-1">
                                                 <span className="font-semibold text-sm">{plan.originalName}</span>
                                                 <span className={cn("text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase",
                                                     plan.isActive ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"
@@ -764,11 +789,16 @@ export default function StudentDetailsPage() {
                                                     {plan.isActive ? "Activo" : "Inactivo"} - {plan.disciplines && plan.disciplines.length > 0 ? plan.disciplines.join(", ") : plan.discipline}
                                                 </span>
                                             </div>
+                                            {plan.registrationDate && (
+                                                <div className="text-[10px] text-slate-400 mb-2">
+                                                    Registrado: {formatDateUTC(plan.registrationDate)}
+                                                </div>
+                                            )}
                                             <div className="flex justify-between text-xs text-slate-500 mb-1">
                                                 <span>Créditos Restantes</span>
                                                 <div className="flex items-center gap-2">
                                                     <span className={cn("font-bold", plan.credits < 2 ? "text-red-500" : "text-slate-700")}>
-                                                        {plan.credits > 900 ? "∞" : plan.credits}
+                                                        {plan.credits}
                                                     </span>
                                                     {role === 'admin' && (plan.isActive || (idx === 0 && plan.credits === 0)) && plan.credits <= 1 && (
                                                         <Button 
@@ -782,7 +812,8 @@ export default function StudentDetailsPage() {
                                                                     credits: plan.originalName === 'Pack 4 Clases' ? 4 : (plan.originalName === 'Pack 12 Clases' ? 12 : 8),
                                                                     amount: "",
                                                                     method: "TRANSFERENCIA",
-                                                                    disciplines: plan.disciplines as string[]
+                                                                    disciplines: plan.disciplines as string[],
+                                                                    registrationDate: new Date().toISOString().split('T')[0]
                                                                 });
                                                                 setIsRenewalDialogOpen(true);
                                                             }}
@@ -797,7 +828,11 @@ export default function StudentDetailsPage() {
                                                                 size="icon"
                                                                 className="h-6 w-6 text-brand-primary hover:bg-brand-primary/10"
                                                                 onClick={() => {
-                                                                    setEditingPlan({ id: plan.id, disciplines: plan.disciplines as string[] });
+                                                                    setEditingPlan({ 
+                                                                        id: plan.id, 
+                                                                        disciplines: plan.disciplines as string[],
+                                                                        registrationDate: plan.registrationDate ? new Date(plan.registrationDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+                                                                    });
                                                                     setIsEditPlanDialogOpen(true);
                                                                 }}
                                                             >

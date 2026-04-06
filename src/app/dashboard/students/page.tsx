@@ -49,9 +49,7 @@ function StudentsContent() {
         injuries: "",
         conditions: "",
         emergencyContact: "",
-        sportsInfo: "",
-        planType: "Sin Plan",
-        disciplines: ["General"] as string[]
+        sportsInfo: ""
     })
 
     useEffect(() => {
@@ -151,16 +149,14 @@ function StudentsContent() {
                     injuries: newStudent.injuries,
                     conditions: newStudent.conditions,
                     emergencyContact: newStudent.emergencyContact,
-                    sportsInfo: newStudent.sportsInfo,
-                    planType: newStudent.planType,
-                    disciplines: newStudent.disciplines,
+                    sportsInfo: newStudent.sportsInfo
                 })
                 toast.success("Alumna registrada correctamente")
                 setIsDialogOpen(false)
                 setNewStudent({
                     name: "", cedula: "", cedulaPrefix: "V", phone: "", email: "",
                     medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "",
-                    sportsInfo: "", planType: "Sin Plan", disciplines: ["General"]
+                    sportsInfo: ""
                 })
                 // trigger a refresh of the list
                 const refreshed = await getStudents()
@@ -349,9 +345,9 @@ function StudentsContent() {
                                             />
                                         </div>
                                         <div className="grid gap-2 col-span-2 border-t pt-2 mt-2">
-                                            <Label className="font-semibold text-brand-primary">Información Deportiva & Plan</Label>
+                                            <Label className="font-semibold text-brand-primary">Información Deportiva</Label>
                                         </div>
-                                        <div className="grid gap-2">
+                                        <div className="grid gap-2 col-span-2">
                                             <Label htmlFor="sportsInfo">Antecedentes Deportivos</Label>
                                             <Input
                                                 id="sportsInfo"
@@ -360,68 +356,6 @@ function StudentsContent() {
                                                 placeholder="Yoga, Danza..."
                                             />
                                         </div>
-                                        <div className="grid gap-2">
-                                            <Label htmlFor="plan">Plan Inicial</Label>
-                                            <Select value={newStudent.planType} onValueChange={(v) => setNewStudent({ ...newStudent, planType: v })}>
-                                                <SelectTrigger>
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="Sin Plan">Sin Plan</SelectItem>
-                                                    <SelectItem value="Clase Suelta">Clase Suelta (1 Clase)</SelectItem>
-                                                    <SelectItem value="Pack 4 Clases">Pack 4 Clases</SelectItem>
-                                                    <SelectItem value="Pack 8 Clases">Pack 8 Clases</SelectItem>
-                                                    <SelectItem value="Pack 12 Clases">Pack 12 Clases</SelectItem>
-                                                    <SelectItem value="Pack 24 Clases">Pack 24 Clases</SelectItem>
-                                                    <SelectItem value="Ilimitado">Ilimitado</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </div>
-                                        {newStudent.planType !== "Sin Plan" && (
-                                            <div className="grid gap-2 col-span-2 border-t pt-4">
-                                                <Label className="mb-2">Disciplinas permitidas por el plan *</Label>
-                                                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-lg border border-slate-100 dark:border-slate-800">
-                                                    <div className="flex items-center space-x-2">
-                                                        <Checkbox
-                                                            id="spec-General"
-                                                            checked={newStudent.disciplines.includes("General")}
-                                                            onCheckedChange={(checked) => {
-                                                                if (checked) {
-                                                                    setNewStudent({ ...newStudent, disciplines: ["General"] })
-                                                                } else {
-                                                                    setNewStudent({ ...newStudent, disciplines: [] })
-                                                                }
-                                                            }}
-                                                        />
-                                                        <label htmlFor="spec-General" className="text-sm font-semibold leading-none cursor-pointer text-brand-primary">
-                                                            General (Todas)
-                                                        </label>
-                                                    </div>
-                                                    {DISCIPLINES.map(d => (
-                                                        <div key={d} className="flex items-center space-x-2">
-                                                            <Checkbox
-                                                                id={`spec-${d}`}
-                                                                checked={newStudent.disciplines.includes(d)}
-                                                                onCheckedChange={(checked) => {
-                                                                    let updated = [...newStudent.disciplines]
-                                                                    if (checked) {
-                                                                        // If adding a specific one, remove 'General'
-                                                                        updated = updated.filter(item => item !== "General")
-                                                                        updated.push(d)
-                                                                    } else {
-                                                                        updated = updated.filter(item => item !== d)
-                                                                    }
-                                                                    setNewStudent({ ...newStudent, disciplines: updated })
-                                                                }}
-                                                            />
-                                                            <label htmlFor={`spec-${d}`} className="text-sm font-medium leading-none cursor-pointer">
-                                                                {d}
-                                                            </label>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                     <DialogFooter>
                                         <Button variant="outline" onClick={() => setIsDialogOpen(false)}>Cancelar</Button>
@@ -460,7 +394,7 @@ function StudentsContent() {
                                     <SelectItem value="Pack 8">Pack 8 Clases</SelectItem>
                                     <SelectItem value="Pack 12">Pack 12 Clases</SelectItem>
                                     <SelectItem value="Pack 24">Pack 24 Clases</SelectItem>
-                                    <SelectItem value="Ilimitado">Ilimitado</SelectItem>
+                                    <SelectItem value="Pack 24">Pack 24 Clases</SelectItem>
                                 </SelectContent>
                             </Select>
 

@@ -107,7 +107,8 @@ export async function addStudent(data: {
     emergencyContact?: string,
     sportsInfo?: string,
     disciplines?: string[],
-    cedula: string
+    cedula: string,
+    registrationDate?: string
 }) {
     await ensureRole(['admin'])
     let parsed
@@ -116,7 +117,7 @@ export async function addStudent(data: {
     } catch (e) {
         throw new Error(formatZodError(e))
     }
-    const { planType, discipline, disciplines, ...studentData } = parsed
+    const { ...studentData } = parsed
 
     // 1. Explicit duplicate checks
     const existingUser = await prisma.user.findFirst({
@@ -204,31 +205,6 @@ export async function addStudent(data: {
         handleActionError(error, "No se pudieron guardar los datos de la alumna.")
     }
 
-    if (planType && planType !== 'Sin Plan') {
-        let credits = 8
-        if (planType === 'Ilimitado') credits = 999
-        if (planType === 'Clase Suelta') credits = 1
-        if (planType === 'Pack 12 Clases') credits = 12
-        if (planType === 'Pack 4 Clases') credits = 4
-        if (planType === 'Pack 24 Clases') credits = 24
-        if (planType === 'Pack 8 Clases') credits = 8
-
-        const finalDisciplines = disciplines || (discipline ? [discipline] : ['General'])
-        let legacyDiscipline = discipline || 'General'
-        if (finalDisciplines.length > 1) legacyDiscipline = 'Múltiples'
-        if (finalDisciplines.includes('General')) legacyDiscipline = 'General'
-
-        await prisma.studentPlan.create({
-            data: {
-                studentId: student.id,
-                discipline: legacyDiscipline,
-                disciplines: finalDisciplines,
-                credits,
-                originalName: planType,
-                isActive: true
-            }
-        })
-    }
 
     revalidatePath('/dashboard/students')
     return student
@@ -351,7 +327,7 @@ export async function deleteHistoryEntry(entryId: string, studentId: string) {
     }
 }
 
-export async function updateStudentPlan(planId: string, studentId: string, disciplines: string[]) {
+export async function updateStudentPlan(planId: string, studentId: string, disciplines: string[], registrationDate?: string) {
     await ensureRole(['admin'])
 
     // Validate input: at least one discipline must be selected
@@ -367,7 +343,8 @@ export async function updateStudentPlan(planId: string, studentId: string, disci
             where: { id: planId },
             data: {
                 disciplines,
-                discipline: legacyDiscipline
+                discipline: legacyDiscipline,
+                registrationDate: registrationDate ? new Date(`${registrationDate}T00:00:00.000Z`) : undefined
             }
         })
 
@@ -387,7 +364,8 @@ export async function processPayment(data: {
     planName: string,
     credits: number,
     discipline?: string,
-    disciplines?: string[]
+    disciplines?: string[],
+    registrationDate?: string
 }) {
     await ensureRole(['admin'])
     try {
@@ -446,7 +424,8 @@ export async function processPayment(data: {
                     disciplines: data.disciplines || (data.discipline ? [data.discipline] : ['General']),
                     credits: data.credits,
                     originalName: data.planName,
-                    isActive: true
+                    isActive: true,
+                    registrationDate: data.registrationDate ? new Date(`${data.registrationDate}T00:00:00.000Z`) : null
                 }
             })
 
@@ -455,7 +434,7 @@ export async function processPayment(data: {
                 data: {
                     studentId: data.studentId,
                     activity: `Nuevo Plan: ${data.planName}`,
-                    notes: `Créditos iniciales: ${data.credits > 900 ? 'Ilimitados' : data.credits}`,
+                    notes: `Créditos iniciales: ${data.credits}`,
                     cost: data.amount
                 }
             })
@@ -478,7 +457,8 @@ export async function renewPlan(data: {
     method: 'EFECTIVO' | 'TRANSFERENCIA' | 'TARJETA' | 'OTRO',
     planName: string,
     credits: number,
-    disciplines: string[]
+    disciplines: string[],
+    registrationDate?: string
 }) {
     await ensureRole(['admin'])
     try {
@@ -518,7 +498,8 @@ export async function renewPlan(data: {
                     disciplines: data.disciplines,
                     discipline: data.disciplines.length > 1 ? 'Múltiples' : data.disciplines[0],
                     originalName: data.planName,
-                    isActive: true // Ensure it stays active
+                    isActive: true, // Ensure it stays active
+                    registrationDate: data.registrationDate ? new Date(`${data.registrationDate}T00:00:00.000Z`) : undefined
                 }
             })
 

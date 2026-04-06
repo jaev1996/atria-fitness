@@ -49,16 +49,13 @@ const roomIdSchema = z
 
 // ── Estudiantes ───────────────────────────────────────────────────────────────
 
-const VALID_PLANS = ['Sin Plan', 'Clase Suelta', 'Pack 4 Clases', 'Pack 8 Clases', 'Pack 12 Clases', 'Pack 24 Clases', 'Ilimitado'] as const
+const VALID_PLANS = ['Sin Plan', 'Clase Suelta', 'Pack 4 Clases', 'Pack 8 Clases', 'Pack 12 Clases', 'Pack 24 Clases'] as const
 
 export const AddStudentSchema = z.object({
     name: z.string().min(1, 'El nombre es obligatorio.').max(100, 'El nombre es demasiado largo (máximo 100 caracteres).').trim(),
     cedula: z.string().min(6, 'La cédula es muy corta.').max(12, 'La cédula es muy larga.').regex(/^[VE]\d+$/, 'Formato de cédula inválido (debe empezar con V o E seguido de números).').trim(),
     phone: z.string().min(1, 'El teléfono es obligatorio.').max(30, 'El número de teléfono es demasiado largo.').trim(),
     email: z.string().email('El correo electrónico no tiene un formato válido.').max(200, 'El correo electrónico es demasiado largo.').trim().optional().or(z.literal('')),
-    planType: z.enum(VALID_PLANS).optional(),
-    discipline: z.string().max(100).optional(),
-    disciplines: z.array(z.string().max(100)).optional(),
     status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']).optional(),
     medicalInfo: z.string().max(2000, 'La información médica es demasiado larga.').optional(),
     allergies: z.string().max(500, 'Las alergias son demasiado largas.').optional(),
@@ -77,6 +74,7 @@ export const ProcessPaymentSchema = z.object({
     credits: z.number().int('Los créditos deben ser un número entero.').positive('Los créditos deben ser mayores a 0.').max(9999, 'Número de créditos inválido.'),
     discipline: z.string().max(100, 'La disciplina es demasiado larga.').optional(),
     disciplines: z.array(z.string().max(100)).optional(),
+    registrationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato inválido').optional().or(z.literal('')),
 })
 
 export const AddHistoryEntrySchema = z.object({
@@ -114,6 +112,7 @@ export const RenewPlanSchema = z.object({
     planName: z.string().min(1, 'El nombre del plan es obligatorio.').max(100, 'El nombre del plan es demasiado largo.'),
     credits: z.number().int('Los créditos deben ser un número entero.').positive('Los créditos deben ser mayores a 0.').max(9999, 'Número de créditos inválido.'),
     disciplines: z.array(z.string().max(100)).min(1, 'Debes seleccionar al menos una disciplina.').max(20, 'Demasiadas disciplinas.'),
+    registrationDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Formato inválido').optional().or(z.literal('')),
 })
 
 export const RemoveAttendeeSchema = z.object({

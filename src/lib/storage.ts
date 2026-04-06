@@ -191,7 +191,7 @@ export const db = {
                 { id: "s2", name: "Beatriz López", email: "beatriz@example.com", phone: "555-0002", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p2", disciplina: "General", creditos: 12, activo: true, nombreOriginal: "Pack 12 Clases" }], payments: [], history: [] },
                 { id: "s3", name: "Carla García", email: "carla@example.com", phone: "555-0003", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p3", disciplina: "General", creditos: 4, activo: true, nombreOriginal: "Pack 4 Clases" }], payments: [], history: [] },
                 { id: "s4", name: "Daniela Rivas", email: "daniela@example.com", phone: "555-0004", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p4", disciplina: "General", creditos: 8, activo: true, nombreOriginal: "Pack 8 Clases" }], payments: [], history: [] },
-                { id: "s5", name: "Elena Torres", email: "elena@example.com", phone: "555-0005", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p5", disciplina: "General", creditos: 20, activo: true, nombreOriginal: "Plan Ilimitado" }], payments: [], history: [] },
+                { id: "s5", name: "Elena Torres", email: "elena@example.com", phone: "555-0005", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p5", disciplina: "General", creditos: 20, activo: true, nombreOriginal: "Pack 24 Clases" }], payments: [], history: [] },
                 { id: "s6", name: "Fernanda Luna", email: "fernanda@example.com", phone: "555-0006", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p6", disciplina: "General", creditos: 8, activo: true, nombreOriginal: "Pack 8 Clases" }], payments: [], history: [] },
                 { id: "s7", name: "Gabriela Sol", email: "gabriela@example.com", phone: "555-0007", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p7", disciplina: "General", creditos: 8, activo: true, nombreOriginal: "Pack 8 Clases" }], payments: [], history: [] },
                 { id: "s8", name: "Hilda Paz", email: "hilda@example.com", phone: "555-0008", medicalInfo: "", allergies: "", injuries: "", conditions: "", emergencyContact: "", sportsInfo: "", status: "active", plans: [{ id: "p8", disciplina: "General", creditos: 8, activo: true, nombreOriginal: "Pack 8 Clases" }], payments: [], history: [] },
@@ -227,11 +227,11 @@ export const db = {
         const initialPlans: StudentPlan[] = [];
         if (planType && planType !== 'Sin Plan') {
             let credits = 8;
-            if (planType === 'Ilimitado') credits = 999;
             if (planType === 'Clase Suelta') credits = 1;
             if (planType === 'Pack 12 Clases') credits = 12;
             if (planType === 'Pack 4 Clases') credits = 4;
             if (planType === 'Pack 24 Clases') credits = 24;
+            if (planType === 'Pack 8 Clases') credits = 8;
 
             initialPlans.push({
                 id: Date.now().toString(),
@@ -418,7 +418,7 @@ export const db = {
                                 });
 
                                 // Autodelete plan if credits reach 0
-                                if (plan.creditos <= 0 && plan.nombreOriginal !== 'Ilimitado') {
+                                if (plan.creditos <= 0) {
                                     student.plans = student.plans.filter(p => p.id !== plan.id);
                                 }
                             }
