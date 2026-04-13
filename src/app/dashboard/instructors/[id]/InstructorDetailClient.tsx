@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useMemo, useTransition, useSyncExternalStore } from "react"
+import { Settings } from "@prisma/client"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { addInstructorPayment, deleteInstructorPayment, updateInstructor, enableStudentProfile } from "@/actions/instructors"
@@ -55,6 +56,8 @@ interface PaymentWithClasses {
     endDate: string | Date
     amount: number
     notes?: string | null
+    exchangeRateUsed?: number | null
+    currencyUsed?: string | null
     classes: ClassWithAttendees[]
 }
 
@@ -72,6 +75,7 @@ interface InstructorDetailClientProps {
     classes: ClassWithAttendees[]
     payments: PaymentWithClasses[]
     disciplineRates: Record<string, { privateRate: number; rates: Tier[] }> | null
+    settings: Settings | null
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -108,7 +112,7 @@ function calculateClassPayment(
     const disciplineRate = effectiveRates[cls.type]
     if (!disciplineRate) return 0
     if (cls.isPrivate) return disciplineRate.privateRate
-    const count = cls.attendees.length
+    const count = cls.attendees.filter(a => a.status === 'BOOKED' || a.status === 'CONFIRMED' || a.status === 'COMPLETED').length
     const tier = disciplineRate.rates.find(t => count >= t.min && (t.max === null || count <= t.max))
     return tier?.price ?? 0
 }
@@ -119,6 +123,7 @@ export function InstructorDetailClient({
     classes,
     payments: initialPayments,
     disciplineRates,
+    settings,
 }: InstructorDetailClientProps) {
     const router = useRouter()
     const { formatCurrency } = useCurrency()
@@ -133,6 +138,19 @@ export function InstructorDetailClient({
         bio: instructor.bio,
         specialties: instructor.specialties
     })
+
+    // ── Exchange Rate State ───────────────────────────────────────────────────
+    const baseCurrency = settings?.currency || "$"
+    const defaultRate = baseCurrency === "€" ? (settings?.eurRate || 1) : (settings?.usdRate || 1)
+    const [manualRate, setManualRate] = useState<number>(defaultRate)
+    const [reportCurrency, setReportCurrency] = useState<"BASE" | "VES">("BASE")
+
+    // Sync manual rate with props if defaultRate changes
+    const [prevDefaultRate, setPrevDefaultRate] = useState(defaultRate)
+    if (defaultRate !== prevDefaultRate) {
+        setPrevDefaultRate(defaultRate)
+        setManualRate(defaultRate)
+    }
 
     // Held locally so we can optimistically update without a full page reload
     const [payments, setPayments] = useState<PaymentWithClasses[]>(initialPayments)
@@ -192,6 +210,8 @@ export function InstructorDetailClient({
                     endDate: dateRange.end,
                     classIds: payrollData.classes.map(c => c.id),
                     notes: `Pago de periodo ${dateRange.start} a ${dateRange.end}`,
+                    exchangeRateUsed: manualRate,
+                    currencyUsed: baseCurrency
                 })
 
                 // Optimistically rebuild the payment with its classes attached
@@ -534,13 +554,51 @@ export function InstructorDetailClient({
                                         <p className="text-xs text-slate-500">promedio</p>
                                     </CardContent>
                                 </Card>
-                                <Card className="bg-slate-900 text-white border-none shadow-sm">
-                                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium opacity-80">Monto a Pagar</CardTitle></CardHeader>
-                                    <CardContent>
-                                        <div className="text-3xl font-bold">{formatCurrency(payrollData.totalPay)}</div>
-                                        <p className="text-xs opacity-70">según asistencia</p>
+                                <Card className="bg-slate-900 text-white border-none shadow-sm h-full flex flex-col justify-center">
+                                    <CardHeader className="pb-2 pt-4"><CardTitle className="text-sm font-medium opacity-80">Monto a Pagar</CardTitle></CardHeader>
+                                    <CardContent className="pb-4">
+                                        <div className="text-2xl sm:text-3xl font-bold">{formatCurrency(payrollData.totalPay)}</div>
+                                        <div className="text-sm font-medium text-emerald-400 mt-1">
+                                            ≈ Bs. {(payrollData.totalPay * manualRate).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                        </div>
+                                        <div className="mt-4 flex flex-col gap-2">
+                                            <Label className="text-[10px] uppercase opacity-50 tracking-wider">Tasa de Cambio (BS)</Label>
+                                            <div className="flex items-center gap-2">
+                                                <Input 
+                                                    type="number" 
+                                                    step="0.01"
+                                                    value={manualRate} 
+                                                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setManualRate(Number(e.target.value))}
+                                                    className="h-8 bg-slate-800 border-slate-700 text-xs text-white w-24 tabular-nums focus-visible:ring-emerald-500"
+                                                />
+                                                {manualRate !== defaultRate && (
+                                                    <Button 
+                                                        variant="ghost" 
+                                                        size="sm" 
+                                                        className="h-8 text-[10px] text-slate-400 hover:text-white p-0 px-2"
+                                                        onClick={() => setManualRate(defaultRate)}
+                                                    >
+                                                        Restablecer
+                                                    </Button>
+                                                )}
+                                            </div>
+                                        </div>
                                     </CardContent>
                                 </Card>
+                            </div>
+
+                            {/* Report Currency Selector */}
+                            <div className="flex justify-end gap-3 items-center bg-white dark:bg-slate-800 p-3 rounded-lg border shadow-sm mb-4 print:hidden">
+                                <Label className="text-sm font-medium text-slate-600 dark:text-slate-400">Moneda del Reporte:</Label>
+                                <Select value={reportCurrency} onValueChange={(v: "BASE" | "VES") => setReportCurrency(v)}>
+                                    <SelectTrigger className="w-[180px] h-9">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="BASE">Original ({baseCurrency === '€' ? 'Euros' : 'Dólares'})</SelectItem>
+                                        <SelectItem value="VES">Bolívares (VES)</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
 
                             {/* Detail table */}
@@ -659,6 +717,7 @@ export function InstructorDetailClient({
                                             isPending={isPending}
                                             onDelete={handleDeletePayment}
                                             instructorName={instructor.name}
+                                            reportCurrency={reportCurrency}
                                         />)
                                 )}
                             </CardContent>
@@ -677,12 +736,14 @@ function PaymentAccordion({
     isPending,
     onDelete,
     instructorName,
+    reportCurrency,
 }: {
     payment: PaymentWithClasses
     disciplineRates: Record<string, { privateRate: number; rates: Tier[] }> | null
     isPending: boolean
     onDelete: (id: string) => void
     instructorName: string
+    reportCurrency: "BASE" | "VES"
 }) {
     const { formatCurrency } = useCurrency()
     const [expanded, setExpanded] = useState(false)
@@ -690,14 +751,33 @@ function PaymentAccordion({
     const [showModal, setShowModal] = useState(false)
 
     const totalStudents = payment.classes.reduce((acc, c) => acc + c.attendees.filter(a => a.status === 'BOOKED').length, 0)
+    const currencyUsed = payment.currencyUsed || "$"
 
     // ── Print voucher in new window ──────────────────────────────────────────
     const printVoucher = () => {
+        const hasHistoricalRate = !!payment.exchangeRateUsed
+        let isVES = reportCurrency === "VES"
+        
+        // If it's a legacy payment and user wants VES, notify and fallback to BASE
+        if (isVES && !hasHistoricalRate) {
+            toast.error("Este pago no tiene una tasa de cambio registrada (pago antiguo). Se imprimirá en la moneda original.")
+            isVES = false
+        }
+
+        const effectiveRate = payment.exchangeRateUsed || 1
+        
+        const formatReportCurrency = (val: number) => {
+            if (isVES) {
+                return `Bs. ${ (val * effectiveRate).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }`
+            }
+            return formatCurrency(val)
+        }
+
         const rows = payment.classes.map((cls, idx) => {
             const roomName = ROOMS.find(r => r.id === cls.room)?.name || cls.room
             const classAmount = calculateClassPayment(cls, disciplineRates)
             const bookedAttendees = cls.attendees.filter(a => a.status === 'BOOKED')
-            const studentList = bookedAttendees.map(a => a.student.name).join(', ') || '—'
+            const studentList = bookedAttendees.map(a => a.student?.name || 'Estudiante').join(', ') || '—'
             return `
                 <tr style="border-bottom:1px solid #e2e8f0">
                     <td style="padding:8px 6px;font-size:13px;color:#374151">${idx + 1}</td>
@@ -705,7 +785,7 @@ function PaymentAccordion({
                     <td style="padding:8px 6px;font-size:13px">${cls.type}${cls.observation ? ` (${cls.observation})` : ''}${cls.isPrivate ? ' ★' : ''}</td>
                     <td style="padding:8px 6px;font-size:13px">${roomName}</td>
                     <td style="padding:8px 6px;font-size:13px;text-align:center">${bookedAttendees.length}</td>
-                    <td style="padding:8px 6px;font-size:13px;font-weight:600;color:#16a34a;text-align:right">${formatCurrency(classAmount)}</td>
+                    <td style="padding:8px 6px;font-size:13px;font-weight:600;color:#16a34a;text-align:right">${formatReportCurrency(classAmount)}</td>
                 </tr>
                 <tr style="background:#f8fafc">
                     <td></td>
@@ -738,6 +818,7 @@ function PaymentAccordion({
         .total-row { background: #f0fdf4; border-top: 2px solid #16a34a; }
         .total-row td { padding: 12px 6px; font-weight: 700; font-size: 15px; color: #16a34a; }
         .footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 11px; color: #94a3b8; }
+        .rate-badge { display: inline-block; padding: 2px 8px; background: #e0e7ff; color: #4338ca; border-radius: 4px; font-weight: bold; }
         @media print { body { padding: 20px; } }
     </style>
 </head>
@@ -766,10 +847,11 @@ function PaymentAccordion({
             <div class="meta-label">Período</div>
             <div class="meta-value">${format(parseISO(toDateStr(payment.startDate)), 'dd/MM/yyyy')} — ${format(parseISO(toDateStr(payment.endDate)), 'dd/MM/yyyy')}</div>
         </div>
+        ${hasHistoricalRate ? `
         <div class="meta-box">
-            <div class="meta-label">Resumen</div>
-            <div class="meta-value">${payment.classes.length} clases · ${totalStudents} alumnas</div>
-        </div>
+            <div class="meta-label">Tasa de Cambio Aplicada</div>
+            <div class="meta-value"><span class="rate-badge">1 ${currencyUsed} = Bs. ${ effectiveRate.toFixed(2) }</span></div>
+        </div>` : ''}
     </div>
 
     <table>
@@ -780,14 +862,14 @@ function PaymentAccordion({
                 <th>Disciplina</th>
                 <th>Sala</th>
                 <th style="text-align:center">Asist.</th>
-                <th style="text-align:right">Total</th>
+                <th style="text-align:right">Total (${isVES ? 'Bs' : currencyUsed})</th>
             </tr>
         </thead>
         <tbody>
             ${rows}
             <tr class="total-row">
                 <td colspan="5" style="text-align:right;padding-right:12px">TOTAL LIQUIDADO</td>
-                <td style="text-align:right;padding:12px 6px">${formatCurrency(payment.amount)}</td>
+                <td style="text-align:right;padding:12px 6px">${formatReportCurrency(payment.amount)}</td>
             </tr>
         </tbody>
     </table>
@@ -847,9 +929,16 @@ function PaymentAccordion({
                         </span>
                     </div>
 
-                    <div className="text-right shrink-0 min-w-[90px]">
+                    <div className="text-right shrink-0 min-w-[120px]">
                         <p className="text-[10px] text-slate-400 uppercase font-semibold">Total</p>
-                        <p className="font-bold text-green-600 text-base">{formatCurrency(payment.amount)}</p>
+                        <div className="flex flex-col items-end">
+                            <p className="font-bold text-green-600 text-base leading-none">{formatCurrency(payment.amount)}</p>
+                            {payment.exchangeRateUsed && (
+                                <p className="text-[11px] font-semibold text-blue-600 mt-1">
+                                    Bs. {(payment.amount * payment.exchangeRateUsed).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                                </p>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -946,8 +1035,8 @@ function PaymentAccordion({
                                                                 {att.student.name.charAt(0)}
                                                             </div>
                                                             <div>
-                                                                <p className="text-sm font-medium leading-tight">{att.student.name}</p>
-                                                                {att.student.email && <p className="text-[10px] text-slate-400">{att.student.email}</p>}
+                                                                <p className="text-sm font-medium leading-tight">{att.student?.name || 'Estudiante'}</p>
+                                                                {att.student?.email && <p className="text-[10px] text-slate-400">{att.student.email}</p>}
                                                             </div>
                                                         </div>
                                                         <div className="flex items-center gap-2">
@@ -976,7 +1065,15 @@ function PaymentAccordion({
                         <p className="text-xs text-slate-400">{payment.classes.length} clases · {totalStudents} alumnas</p>
                         <div className="text-right">
                             <p className="text-[10px] text-slate-400 uppercase">Total liquidado</p>
-                            <p className="text-xl font-bold text-green-600">{formatCurrency(payment.amount)}</p>
+                            <div className="flex flex-col items-end">
+                                <p className="text-xl font-bold text-green-600">{formatCurrency(payment.amount)}</p>
+                                {payment.exchangeRateUsed && (
+                                    <div className="mt-1 text-right">
+                                        <p className="text-sm font-bold text-blue-600">Bs. {(payment.amount * payment.exchangeRateUsed).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                                        <p className="text-[10px] text-slate-400 italic">Tasa aplicada: 1 {currencyUsed} = Bs. {payment.exchangeRateUsed.toFixed(2)}</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -1034,9 +1131,9 @@ function PaymentAccordion({
                                                 <div key={att.id} className="flex items-center justify-between py-1.5">
                                                     <div className="flex items-center gap-2">
                                                         <div className="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold shrink-0">
-                                                            {att.student.name.charAt(0)}
+                                                            {att.student?.name?.charAt(0) || '?'}
                                                         </div>
-                                                        <span className="text-sm">{att.student.name}</span>
+                                                        <span className="text-sm">{att.student?.name || 'Estudiante'}</span>
                                                     </div>
                                                     {att.attendanceType === 'COURTESY' && (
                                                         <Badge className="text-[9px] bg-yellow-100 text-yellow-700 border-0">Cortesía</Badge>
@@ -1052,9 +1149,18 @@ function PaymentAccordion({
 
                     {/* Total */}
                     <div className="flex items-center justify-between bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl px-5 py-4 mt-4">
-                        <div>
-                            <p className="text-xs text-slate-500 uppercase tracking-wide">Total Liquidado</p>
-                            <p className="text-2xl font-bold text-green-600">{formatCurrency(payment.amount)}</p>
+                        <div className="flex gap-8">
+                            <div>
+                                <p className="text-xs text-slate-500 uppercase tracking-wide">Total Divisas</p>
+                                <p className="text-2xl font-bold text-green-600">{formatCurrency(payment.amount)}</p>
+                            </div>
+                            {payment.exchangeRateUsed && (
+                                <div>
+                                    <p className="text-xs text-slate-500 uppercase tracking-wide">Total Bolívares</p>
+                                    <p className="text-2xl font-bold text-blue-600">Bs. {(payment.amount * payment.exchangeRateUsed).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                                    <p className="text-[10px] text-slate-400 italic mt-0.5">Tasa: 1 {currencyUsed} = Bs. {payment.exchangeRateUsed.toFixed(2)}</p>
+                                </div>
+                            )}
                         </div>
                         <Button onClick={printVoucher} className="gap-2 bg-primary hover:bg-primary/90">
                             <Printer className="h-4 w-4" /> Imprimir Comprobante

@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react"
 import { getDashboardMetrics } from "@/actions/metrics"
+import { getSettings } from "@/actions/settings"
+import { Settings } from "@prisma/client"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Sidebar } from "@/components/shared/sidebar"
 import { MobileNav } from "@/components/shared/mobile-nav"
@@ -21,14 +23,19 @@ const ROOM_LABELS: Record<string, string> = {
 export default function DashboardPage() {
     const { isAuthenticated, role, userId, loading } = useAuth(true)
     const [data, setData] = useState<DashboardData | null>(null)
+    const [settings, setSettings] = useState<Settings | null>(null)
     const [dataLoading, setDataLoading] = useState(true)
 
     const loadData = useCallback(async () => {
         if (!role) return
         setDataLoading(true)
         try {
-            const result = await getDashboardMetrics(role === "instructor" ? (userId ?? undefined) : undefined)
-            setData(result)
+            const [metrics, settingsData] = await Promise.all([
+                getDashboardMetrics(role === "instructor" ? (userId ?? undefined) : undefined),
+                getSettings()
+            ])
+            setData(metrics)
+            setSettings(settingsData)
         } catch (e) {
             console.error("Error loading dashboard metrics", e)
         } finally {
@@ -102,6 +109,24 @@ export default function DashboardPage() {
                             ? "Este es el resumen de tus clases y alumnas para hoy."
                             : "Resumen general de la actividad del estudio."}
                     </p>
+
+                    {role === 'admin' && settings && settings.usdRate && settings.eurRate && (
+                        <div className="flex flex-wrap gap-4 mt-4">
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">USD BCV</span>
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Bs. {settings.usdRate.toFixed(2)}</span>
+                            </div>
+                            <div className="flex items-center gap-2 px-3 py-1.5 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">EUR BCV</span>
+                                <span className="text-sm font-bold text-slate-700 dark:text-slate-200">Bs. {settings.eurRate.toFixed(2)}</span>
+                            </div>
+                            {settings.rateUpdatedAt && (
+                                <div className="flex items-center text-[10px] text-slate-400 italic">
+                                    Actualizado: {new Date(settings.rateUpdatedAt).toLocaleDateString()} {new Date(settings.rateUpdatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
 
                 {/* KPI Cards */}

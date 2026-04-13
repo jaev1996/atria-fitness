@@ -6,6 +6,7 @@ import { DISCIPLINES, ROOMS, Tier } from "@/constants/config"
 import { Prisma } from "@prisma/client"
 import { ensureRole } from "@/lib/auth-utils"
 import { UpdateDisciplineRateSchema, UpdateRoomDisciplinesSchema } from "@/lib/schemas"
+import { fetchBCVRates } from "@/lib/exchange-rate"
 
 // ── Default rates used when no settings exist in DB ───────────────────────────
 const DEFAULT_DISCIPLINE_RATES: Record<string, { privateRate: number; rates: Tier[] }> = Object.fromEntries(
@@ -38,34 +39,84 @@ const toJson = (v: unknown) => v as Prisma.InputJsonValue
 export async function getSettings() {
     // Both admin and instructor need settings for calendar disciplines
     await ensureRole(['admin', 'instructor'])
-    const existing = await prisma.settings.findUnique({ where: { id: 'singleton' } })
+    let existing = await prisma.settings.findUnique({ where: { id: 'singleton' } })
 
-    if (existing) {
-        // Back-fill any new disciplines added to DISCIPLINES constant
-        const rates = (existing.disciplineRates as unknown as Record<string, { privateRate: number; rates: Tier[] }>) ?? {}
-        const missingDisciplines = DISCIPLINES.filter(d => !rates[d])
-
-        if (missingDisciplines.length > 0) {
-            missingDisciplines.forEach(d => { rates[d] = DEFAULT_DISCIPLINE_RATES[d] })
-            await prisma.settings.update({
-                where: { id: 'singleton' },
-                data: { disciplineRates: toJson(rates) }
-            })
-            return { ...existing, disciplineRates: rates }
-        }
-
-        return existing
+    if (!existing) {
+        const initialRates = await fetchBCVRates()
+        existing = await prisma.settings.create({
+            data: {
+                id: 'singleton',
+                disciplineRates: toJson(DEFAULT_DISCIPLINE_RATES),
+                roomDisciplines: toJson(DEFAULT_ROOM_DISCIPLINES),
+                currency: '$',
+                usdRate: initialRates?.usd,
+                eurRate: initialRates?.eur,
+                rateUpdatedAt: initialRates?.lastUpdated
+            }
+        })
     }
 
-    // First access — create with all defaults
-    return await prisma.settings.create({
-        data: {
+    // 1. Back-fill any new disciplines added to DISCIPLINES constant
+    const disciplineRates = (existing.disciplineRates as unknown as Record<string, { privateRate: number; rates: Tier[] }>) ?? {}
+    const missingDisciplines = DISCIPLINES.filter(d => !disciplineRates[d])
+
+    if (missingDisciplines.length > 0) {
+        missingDisciplines.forEach(d => { disciplineRates[d] = DEFAULT_DISCIPLINE_RATES[d] })
+        existing = await prisma.settings.update({
+            where: { id: 'singleton' },
+            data: { disciplineRates: toJson(disciplineRates) }
+        })
+    }
+
+    // 2. Exchange Rate Auto-Refresh (Lazy)
+    const oneHourAgo = new Date(Date.now() - 3600 * 1000)
+    const needsRefresh = !existing.rateUpdatedAt || existing.rateUpdatedAt < oneHourAgo
+
+    if (needsRefresh) {
+        console.log("Exchange rates expired, refreshing...")
+        const rates = await fetchBCVRates()
+        if (rates) {
+            existing = await prisma.settings.update({
+                where: { id: 'singleton' },
+                data: {
+                    usdRate: rates.usd,
+                    eurRate: rates.eur,
+                    rateUpdatedAt: rates.lastUpdated
+                }
+            })
+        }
+    }
+
+    return existing
+}
+
+export async function refreshExchangeRates() {
+    await ensureRole(['admin'])
+    const rates = await fetchBCVRates()
+    if (!rates) throw new Error("No se pudieron obtener las tasas actuales del BCV.")
+    
+    await prisma.settings.upsert({
+        where: { id: 'singleton' },
+        update: {
+            usdRate: rates.usd,
+            eurRate: rates.eur,
+            rateUpdatedAt: rates.lastUpdated
+        },
+        create: {
             id: 'singleton',
+            usdRate: rates.usd,
+            eurRate: rates.eur,
+            rateUpdatedAt: rates.lastUpdated,
             disciplineRates: toJson(DEFAULT_DISCIPLINE_RATES),
             roomDisciplines: toJson(DEFAULT_ROOM_DISCIPLINES),
             currency: '$'
         }
     })
+    
+    revalidatePath('/dashboard')
+    revalidatePath('/dashboard/settings')
+    revalidatePath('/dashboard/instructors')
+    return { success: true }
 }
 
 export async function updateDisciplineRate(discipline: string, data: { privateRate: number; rates: Tier[] }) {

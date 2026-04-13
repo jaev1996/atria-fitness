@@ -240,7 +240,9 @@ export async function addInstructorPayment(data: {
     startDate: string,
     endDate: string,
     classIds: string[],
-    notes?: string
+    notes?: string,
+    exchangeRateUsed?: number,
+    currencyUsed?: string
 }) {
     await ensureRole(['admin'])
     try {
@@ -273,6 +275,8 @@ export async function addInstructorPayment(data: {
                     startDate: new Date(data.startDate),
                     endDate: new Date(data.endDate),
                     notes: data.notes,
+                    exchangeRateUsed: data.exchangeRateUsed,
+                    currencyUsed: data.currencyUsed,
                 }
             })
 

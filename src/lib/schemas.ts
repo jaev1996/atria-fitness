@@ -138,6 +138,8 @@ export const AddInstructorPaymentSchema = z.object({
     endDate: dateStrSchema,
     classIds: z.array(idSchema).min(1, 'Debes seleccionar al menos una clase.'),
     notes: z.string().max(500).optional(),
+    exchangeRateUsed: z.number().positive().optional(),
+    currencyUsed: z.string().max(10).optional(),
 })
 
 // ── Configuración ─────────────────────────────────────────────────────────────

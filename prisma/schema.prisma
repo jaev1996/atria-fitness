@@ -163,13 +163,20 @@ model InstructorPayment {
   startDate    DateTime
   endDate      DateTime
   notes        String?
+  
+  // Auditoría de tasa
+  exchangeRateUsed Float?
+  currencyUsed     String?  @default("$")
 
   classes ClassSession[]
 }
 
 model Settings {
-  id              String @id @default("singleton")
+  id              String   @id @default("singleton")
   disciplineRates Json?
   roomDisciplines Json?
-  currency        String @default("$")
+  currency        String   @default("$")
+  usdRate         Float?
+  eurRate         Float?
+  rateUpdatedAt   DateTime?
 }

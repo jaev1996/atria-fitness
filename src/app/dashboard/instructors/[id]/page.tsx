@@ -20,7 +20,11 @@ export default async function InstructorDetailPage({ params }: PageProps) {
         }),
         prisma.classSession.findMany({
             where: { instructorId: id },
-            include: { attendees: true },
+            include: { 
+                attendees: {
+                    include: { student: true }
+                } 
+            },
             orderBy: { date: 'asc' }
         }),
         getInstructorPayments(id),
@@ -46,6 +50,7 @@ export default async function InstructorDetailPage({ params }: PageProps) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             payments={payments as any[]}
             disciplineRates={settings?.disciplineRates as Record<string, { privateRate: number; rates: Tier[] }> | null}
+            settings={settings}
         />
     )
 }
