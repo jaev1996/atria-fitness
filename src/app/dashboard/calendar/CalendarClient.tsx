@@ -30,7 +30,7 @@ const HOURS = Array.from({ length: 26 }, (_, i) => {
 const toYYYYMMDD = (date: Date) =>
     `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}`
 
-const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
 
 const STATUS_LABELS: Record<ClassStatus, string> = {
     SCHEDULED: "Programada",
@@ -183,7 +183,7 @@ export function CalendarClient({
     }, [currentWeekStart, role, userId, viewType])
 
     const weekDates = useMemo(() => {
-        return Array.from({ length: 6 }, (_, i) => {
+        return Array.from({ length: 7 }, (_, i) => {
             const date = new Date(currentWeekStart)
             date.setDate(date.getDate() + i)
             return date
@@ -211,7 +211,7 @@ export function CalendarClient({
         // Build the full date range for the current period
         const periodDates: string[] = []
         if (viewType === 'week') {
-            for (let i = 0; i < 6; i++) {
+            for (let i = 0; i < 7; i++) {
                 const d = new Date(currentWeekStart)
                 d.setDate(d.getDate() + i)
                 periodDates.push(toYYYYMMDD(d))
@@ -773,7 +773,7 @@ export function CalendarClient({
                                         <div className="min-w-[1000px] bg-white dark:bg-slate-800">
                                             {/* Header */}
                                             {viewType === 'week' && (
-                                                <div className="grid grid-cols-[96px_repeat(6,1fr)] border-b dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 z-10 shadow-sm">
+                                                <div className="grid grid-cols-[96px_repeat(7,1fr)] border-b dark:border-slate-700 sticky top-0 bg-white dark:bg-slate-800 z-10 shadow-sm">
                                                     <div className="p-3 border-r dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-medium text-slate-500 text-center w-24 shrink-0">Hora</div>
                                                     {weekDates.map((date, i) => (
                                                         <div key={i} className="p-3 border-r dark:border-slate-700 bg-slate-50 dark:bg-slate-900 font-medium text-slate-700 dark:text-slate-200 text-center flex-1">
@@ -792,7 +792,7 @@ export function CalendarClient({
                                                     {HOURS.map(hour => (
                                                 <div
                                                     key={hour}
-                                                    className="grid grid-cols-[96px_repeat(6,1fr)] border-b dark:border-slate-700 last:border-0"
+                                                    className="grid grid-cols-[96px_repeat(7,1fr)] border-b dark:border-slate-700 last:border-0"
                                                     style={{ height: `${64 * zoomLevel}px` }}
                                                 >
                                                     <div className={cn(
